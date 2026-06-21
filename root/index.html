@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kv Ch'in | AI 芯片设计工程师</title>
+    <meta name="description" content="AI 芯片设计工程师个人主页，整理 NPU 架构、视频处理 SoC、低功耗设计、SystemC 建模与硬件流水实现相关经历和笔记。" />
+    <script>document.documentElement.classList.add("js");</script>
+    <script>window.SITE_CONFIG={"basePath":"/website","contactApiBase":"","emailjs":{"serviceId":"QQ service_3vgpasm","templateId":"template_ukyfa7m","publicKey":"HY_NPIaIkw5fY4BKG","toEmail":"kvinkin@qq.com"}};</script>
+    <link rel="stylesheet" href="/website/styles.css?v=20260621-emailjs" />
+    
+  </head>
+  <body>
+    
+  <nav class="nav">
+    <div class="shell nav-inner">
+      <a class="brand" href="/website/" aria-label="首页">
+        <span class="brand-mark">K</span>
+        <span>Kv Ch'in</span>
+      </a>
+      <div class="nav-links">
+        <a class="active" href="/website/">首页</a>
+        <a class="" href="/website/resume/">简历</a>
+        <a class="" href="/website/articles/">文章</a>
+        <a href="/website/#contact">联系</a>
+        <a class="nav-cta" href="/website/articles/flashattention-npu-pipeline/">最新文章</a>
+      </div>
+    </div>
+  </nav>
+
+    
+    <main>
+      <section class="hero">
+        <div class="shell hero-grid">
+          <div>
+            <div class="eyebrow">AI Inference Silicon</div>
+            <h1>做能落地的 AI 芯片架构与数字实现</h1>
+            <p class="hero-lede">我从事数字 IC 设计与 AI 推理芯片研发，经历过两款视频处理 SoC 从 0 到 1 的研发，也参与自研 NPU IP 的架构建模与微架构设计。这里整理我的公开版简历、项目经历，以及关于 FlashAttention、Online Softmax 和硬件流水实现的技术文章。</p>
+            <div class="hero-actions">
+              <a class="button primary" href="/website/articles/">阅读文章</a>
+              <a class="button" href="/website/resume/">查看简历</a>
+            </div>
+          </div>
+
+          <aside class="signal-panel" aria-label="架构信号面板">
+            <div class="signal-top">
+              <span>NPU PIPELINE</span>
+              <span>ONLINE SOFTMAX</span>
+            </div>
+            <div class="wave">
+              <div class="wave-bars" aria-hidden="true">
+                <span style="height: 42%"></span><span style="height: 58%"></span><span style="height: 72%"></span><span style="height: 47%"></span><span style="height: 86%"></span><span style="height: 64%"></span><span style="height: 91%"></span><span style="height: 55%"></span><span style="height: 76%"></span><span style="height: 68%"></span><span style="height: 95%"></span><span style="height: 61%"></span><span style="height: 80%"></span><span style="height: 49%"></span><span style="height: 70%"></span><span style="height: 88%"></span>
+              </div>
+              <div class="signal-caption">
+                <strong>Throughput first, memory aware.</strong>
+                <span>从算法递推式到硬件反馈路径，把“怎么算对”和“怎么跑满”放在同一张图里。</span>
+              </div>
+            </div>
+            <div class="metric-row">
+              <div class="metric"><strong>ASIC</strong><span>数字前端 / 架构建模</span></div>
+              <div class="metric"><strong>NPU</strong><span>推理数据流</span></div>
+              <div class="metric"><strong>FA</strong><span>Online Softmax</span></div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="resume" class="section">
+        <div class="shell">
+          <div class="section-head">
+            <h2 class="section-title">简历概览</h2>
+            <p class="section-note">完整经历、技术栈和项目方向已经整理成独立页面，首页保留适合快速扫描的结构。</p>
+          </div>
+          <div class="resume-grid">
+            <div class="card card-pad">
+              <h3>方向</h3>
+              <p>硕士毕业于西安电子科技大学微电子学院，目前聚焦 AI 推理芯片、视频处理 SoC 与低功耗数字设计。工作中覆盖系统级低功耗方案、UPF/EDA Flow、RTL 模块实现、架构建模与性能分析，并持续把复杂算法拆解为可落到硬件的数据流。</p>
+              <div class="tag-row"><span class="tag">数字 IC 设计</span><span class="tag">NPU / AI 推理芯片</span><span class="tag">视频处理 SoC</span><span class="tag">低功耗设计 / UPF</span><span class="tag">RTL 设计</span><span class="tag">SystemC 建模</span><span class="tag">FlashAttention</span><span class="tag">Online Softmax</span></div>
+            </div>
+            <div class="card card-pad">
+              <div class="timeline">
+                <div class="timeline-item"><time>2023.07 - 至今</time><h3>AI 芯片设计工程师</h3><p>参与视频处理 SoC 与自研 NPU IP 研发，工作覆盖低功耗设计、RTL 实现、EDA Flow、自动化脚本、架构建模与性能分析。</p></div><div class="timeline-item"><time>2020.09 - 2023.07</time><h3>西安电子科技大学 · 硕士</h3><p>微电子学与固体电子学方向，成绩排名 TOP1%，获研究生国家奖学金；以学生一作身份发表 SCI 论文与授权专利。</p></div><div class="timeline-item"><time>2016.09 - 2020.06</time><h3>西安电子科技大学 · 本科</h3><p>微电子科学与工程专业，系统学习半导体器件、数字集成电路、模拟电路与芯片设计基础。</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="writing" class="section alt">
+        <div class="shell">
+          <div class="section-head">
+            <h2 class="section-title">技术文章</h2>
+            <p class="section-note">文章页为公式、长图、目录和代码块做了排版优化，适合把知乎内容沉淀成自己的知识库。</p>
+          </div>
+          <div class="article-grid">
+  <article class="article-card">
+    <a class="article-image-link" href="/website/articles/flashattention-online-softmax/" aria-label="AI推理芯片/NPU设计中如何实现高效的FlashAttention">
+      <img src="/website/assets/fa3_algorithm_white.jpg" alt="FlashAttention-3 Algorithm" loading="lazy" />
+    </a>
+    <div class="article-body">
+      <div class="article-meta"><span>FlashAttention</span><span>FlashAttention</span><span>Online Softmax</span><span>NPU</span><span>2026-06-20</span></div>
+      <h3><a href="/website/articles/flashattention-online-softmax/">AI推理芯片/NPU设计中如何实现高效的FlashAttention</a></h3>
+      <p>从标准 Attention 和 safe softmax 出发，解释 FlashAttention 为什么可以分块算出精确 attention，并指出 FA3 伪代码中的缩放项问题。</p>
+      <a class="read-link" href="/website/articles/flashattention-online-softmax/">阅读全文 →</a>
+    </div>
+  </article>
+
+  <article class="article-card">
+    <a class="article-image-link" href="/website/articles/flashattention-npu-pipeline/" aria-label="如何在NPU设计中加速 FlashAttention 计算">
+      <img src="/website/assets/pipeline_cover.png" alt="FlashAttention pipeline cover" loading="lazy" />
+    </a>
+    <div class="article-body">
+      <div class="article-meta"><span>NPU Pipeline</span><span>NPU</span><span>Pipeline</span><span>Lookahead</span><span>2026-06-20</span></div>
+      <h3><a href="/website/articles/flashattention-npu-pipeline/">如何在NPU设计中加速 FlashAttention 计算</a></h3>
+      <p>聚焦 Online Softmax 的 loop-carried dependency，用 lookahead 展开把标量递推链路做成高吞吐全流水结构。</p>
+      <a class="read-link" href="/website/articles/flashattention-npu-pipeline/">阅读全文 →</a>
+    </div>
+  </article>
+</div>
+        </div>
+      </section>
+
+      <section id="contact" class="section contact-section">
+        <div class="shell contact-panel">
+          <div class="contact-copy">
+            <span class="eyebrow">Contact</span>
+            <h2>有想法，直接留言</h2>
+            <p>技术讨论、文章反馈、项目合作都可以从这里发起。正式部署后，消息会直接推送到邮箱。</p>
+          </div>
+
+          <form class="contact-form" id="contact-form">
+            <div class="form-row">
+              <label class="field">
+                <span>姓名</span>
+                <input class="input" name="name" type="text" placeholder="怎么称呼你" required />
+              </label>
+              <label class="field">
+                <span>邮箱</span>
+                <input class="input" name="email" type="email" placeholder="用于接收回复" required />
+              </label>
+            </div>
+            <label class="field">
+              <span>消息</span>
+              <textarea class="textarea" name="message" placeholder="想讨论的问题、合作方向或文章反馈..." required></textarea>
+            </label>
+            <div class="form-actions">
+              <span class="form-hint">不会在页面展示你的联系方式</span>
+              <button class="button accent" type="submit">发送消息</button>
+            </div>
+            <div class="status" id="form-status" aria-live="polite"></div>
+          </form>
+        </div>
+      </section>
+    </main>
+  
+    <footer class="footer">
+      <div class="shell footer-inner">
+        <span>© 2026 Kv Ch'in</span>
+        <span>Built for silicon notes and technical writing.</span>
+      </div>
+    </footer>
+    <script src="/website/main.js?v=20260621-emailjs"></script>
+  </body>
+</html>
