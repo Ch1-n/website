@@ -34,23 +34,23 @@
         <div class="shell page-hero-grid">
           <div>
             <span class="eyebrow">Resume</span>
-            <h1>AI 推理芯片 / NPU 设计工程师</h1>
-            <p>硕士毕业于西安电子科技大学微电子学院，目前聚焦 AI 推理芯片、NPU IP 与视频处理 SoC 的数字前端研发。工作中覆盖架构建模、微架构设计、RTL 模块实现、系统级低功耗方案、UPF/EDA Flow 与性能分析，擅长把 Attention、图像增强、视频处理等算法拆解为可实现、可验证、可跑满吞吐的数据流和硬件流水。</p>
+            <h1>AI 芯片 / NPU 设计工程师</h1>
+            <p>本硕均毕业于西安电子科技大学微电子学院，目前聚焦 AI 推理芯片、NPU IP 与视觉类AI SoC 的数字前端开发。工作中覆盖架构建模、微架构设计、RTL 模块实现、系统/模块级低功耗方案与UPF全流程等，致力于把 Attention、softmax、图像处理等算法拆解为可实现、可验证、可跑满吞吐的数据流和硬件流水，打造出PPA趋近于完美的AI 芯片。</p>
           </div>
           <div class="resume-snapshot">
             <strong>Profile</strong>
             <div class="profile-list">
         <div class="profile-row">
           <span>定位</span>
-          <strong>AI 推理芯片 / NPU IP / 视频处理 SoC</strong>
+          <strong>AI CORE/ NPU /  AI SoC</strong>
         </div>
         <div class="profile-row">
           <span>经历</span>
-          <strong>两款视频处理 SoC 从 0 到 1 研发，当前参与自研 NPU IP</strong>
+          <strong>两款量产AI SoC 从 0 到 1 研发，NPU CORE建模及微架构设计实现</strong>
         </div>
         <div class="profile-row">
           <span>能力</span>
-          <strong>架构建模、RTL 实现、低功耗闭环、硬件流水优化</strong>
+          <strong>SystemC建模、RTL 实现、低功耗设计全流程、硬件流水优化</strong>
         </div></div>
           </div>
         </div>
@@ -65,7 +65,7 @@
             </div>
             <div class="resume-snapshot compact">
               <strong>Current Stack</strong>
-              <div class="tag-row"><span class="tag">数字 IC 设计</span><span class="tag">NPU / AI 推理芯片</span><span class="tag">视频处理 SoC</span><span class="tag">低功耗设计 / UPF</span><span class="tag">RTL / 微架构设计</span><span class="tag">SystemC bit/cycle 建模</span><span class="tag">硬件流水设计</span><span class="tag">FlashAttention</span><span class="tag">Online Softmax</span></div>
+              <div class="tag-row"><span class="tag">NPU / AI 芯片</span><span class="tag">数字 IC 设计</span><span class="tag">AI视觉类 SoC</span><span class="tag">SystemC bit/cycle 粒度建模</span><span class="tag">微架构设计 / RTL实现</span><span class="tag">低功耗设计 / UPF全流程</span><span class="tag">硬件全流水设计</span><span class="tag">FlashAttention</span><span class="tag">Online Softmax</span></div>
             </div>
           </div>
           <div class="feature-grid">
@@ -85,21 +85,21 @@
     <div class="project-main">
       <div class="project-kicker">2026 - 至今 · 架构建模 / 微架构设计 / RTL 实现</div>
       <h3>自研 NPU IP</h3>
-      <p>面向智能终端与边缘计算场景，参与自研 NPU IP 架构研发，围绕计算、访存、片上存储和控制调度协同评估性能与实现成本，支持目标检测、语义分割、图像增强、多模态感知及轻量化大模型推理等 AI 任务。</p>
-      <div class="stat-row"><span class="stat-pill">INT8/FP8 峰值 3.2 TOPS @ 800MHz</span><span class="stat-pill">FP16/BF16 峰值 1.6 TOPS @ 800MHz</span><span class="stat-pill">2K 8bit MAC / 1K 16bit MAC</span><span class="stat-pill">256KB-1MB 可配置片上共享存储</span><span class="stat-pill">最高 128B/Cycle DDR 访问带宽</span><span class="stat-pill">最大 8 维数据搬移</span></div>
+      <p>面向智能终端与边缘计算场景，支持目标检测、语义分割、图像增强、多模态感知及轻量化大模型推理等 AI 任务。采用RISC-V控制核与专用AI计算核心协同的异构架构，兼顾通用调度、长尾算子处理与高能效AI推理能力，可支持CNN、Transformer等主流模型结构，支持典型AI算子。</p>
+      <div class="stat-row"><span class="stat-pill">INT8/FP8/FP16/BF16/FP32</span><span class="stat-pill">INT8/FP8 峰值 3.2 TOPS @ 800MHz</span><span class="stat-pill">FP16/BF16 峰值 1.6 TOPS @ 800MHz</span><span class="stat-pill">2K 8bit MAC 与 1K 16bit MAC 并行</span><span class="stat-pill">256KB-1MB 可配置片上共享存储</span><span class="stat-pill">最高 128B/Cycle DDR 访问带宽</span></div>
     </div>
     <div class="project-detail">
       <h4>我的工作</h4>
-      <ul><li>参与 RISC-V 控制核与专用 AI 计算核心协同的异构架构设计，梳理通用调度、长尾算子处理与专用加速路径之间的分工。</li><li>负责向量引擎激活函数处理单元的 SystemC 周期级建模与微架构评估，覆盖 exp、reciprocal、relu、gelu、sigmoid、tanh、log、swish、softplus 等函数。</li><li>开展 bit-accurate / cycle-accurate 建模，评估流水深度、数据格式、精度误差与 RTL 资源代价。</li><li>针对 FlashAttention / Online Softmax 的递推依赖，设计标量计算模块与更新路径，支撑 Attention 类算子的高吞吐硬件实现探索。</li></ul>
+      <ul><li>负责vector engine内activation core的 SystemC 周期级建模与微架构评估，实现可复用的硬件流水线，支持 relu、tanh、exp、recip、recip_sqrt、log、swish、gelu、cos、elu、prelu、sigmoid、softplus 函数；FP24输入实现e8m8格式下小于1ulp的精度，部分函数实现0.1ulp精度。</li><li>负责vector engine内scalar core的 SystemC 周期级建模与微架构评估，针对 FlashAttention / Online Softmax 中的循环递推依赖，设计面向硬件流水的递推展开与调度优化方案，支撑 Attention 类算子的高吞吐全流水实现。</li><li>开展 bit / cycle-accurate 建模，评估流水深度、数据格式、精度误差与硬件资源代价；</li></ul>
     </div>
   </article>
 
   <article class="project-card">
     <div class="project-main">
-      <div class="project-kicker">2025 - 2026 · 参数化 RTL 模块开发 / 低功耗设计 / Debug 支撑</div>
-      <h3>视觉增强 AI 视频处理器</h3>
+      <div class="project-kicker">2025 - 2026 · 参数化 ASIC 模块开发 / 低功耗设计等</div>
+      <h3>AI 视觉类SoC</h3>
       <p>面向低照度可见光增强、红外视频增强、异源图像融合及边缘 AI 视频处理场景，参与视觉增强 AI 视频处理器研发，覆盖图像采集、增强、融合、AI 推理、显示与编码链路。</p>
-      <div class="stat-row"><span class="stat-pill">双核 NPU，INT8 算力 6 TOPS</span><span class="stat-pill">ISP 支持 2K@60fps Bayer RAW</span><span class="stat-pill">红外增强支持 1280x1024@100fps / 16bit</span><span class="stat-pill">图形与编码链路最高支持 4K@30fps</span><span class="stat-pill">支持可见光与红外双路并行处理</span></div>
+      <div class="stat-row"><span class="stat-pill">双核 NPU，INT8 算力 6 TOPS</span><span class="stat-pill">4类自研图像加速器模块</span><span class="stat-pill">自研视觉融合模块、畸变矫正模块</span><span class="stat-pill">ISP 支持 2K@60fps Bayer RAW</span><span class="stat-pill">红外增强支持 1280x1024@100fps / 16bit</span><span class="stat-pill">图形与编码链路最高支持 4K@30fps</span><span class="stat-pill">支持可见光与红外双路并行处理</span></div>
     </div>
     <div class="project-detail">
       <h4>我的工作</h4>
@@ -110,9 +110,9 @@
   <article class="project-card">
     <div class="project-main">
       <div class="project-kicker">2023 - 2025 · 系统级低功耗设计 / EDA Flow / 自动化脚本</div>
-      <h3>4K 高性能多核视频处理器 SoC</h3>
+      <h3>视觉类SoC</h3>
       <p>面向红外/可见光异源图像融合、HDR 成像及通用图像算法加速场景，参与高算力、低功耗视频处理器 SoC 研发，支持 4K 实时图像融合与 OpenCV 典型函数加速。</p>
-      <div class="stat-row"><span class="stat-pill">可见光输入 3840x2160@60fps / 24bit</span><span class="stat-pill">红外输入 1280x1024@100fps / 16bit</span><span class="stat-pill">融合图像输出 4K@60fps</span><span class="stat-pill">单核视觉计算单元最高 410 GFLOPS</span><span class="stat-pill">典型场景功耗约 3W</span><span class="stat-pill">一次流片成功</span></div>
+      <div class="stat-row"><span class="stat-pill">可见光输入 3840x2160@60fps / 24bit</span><span class="stat-pill">红外输入 1280x1024@100fps / 16bit</span><span class="stat-pill">融合图像输出 4K@60fps</span><span class="stat-pill">单核视觉计算单元最高 410 GFLOPS</span><span class="stat-pill">典型场景功耗约 3W</span></div>
     </div>
     <div class="project-detail">
       <h4>我的工作</h4>
@@ -127,11 +127,11 @@
         <div class="shell resume-grid">
           <div class="card card-pad">
             <h3>技术关键词</h3>
-            <div class="tag-row"><span class="tag">数字 IC 设计</span><span class="tag">NPU / AI 推理芯片</span><span class="tag">视频处理 SoC</span><span class="tag">低功耗设计 / UPF</span><span class="tag">RTL / 微架构设计</span><span class="tag">SystemC bit/cycle 建模</span><span class="tag">硬件流水设计</span><span class="tag">FlashAttention</span><span class="tag">Online Softmax</span></div>
+            <div class="tag-row"><span class="tag">NPU / AI 芯片</span><span class="tag">数字 IC 设计</span><span class="tag">AI视觉类 SoC</span><span class="tag">SystemC bit/cycle 粒度建模</span><span class="tag">微架构设计 / RTL实现</span><span class="tag">低功耗设计 / UPF全流程</span><span class="tag">硬件全流水设计</span><span class="tag">FlashAttention</span><span class="tag">Online Softmax</span></div>
           </div>
           <div class="card card-pad">
             <div class="timeline">
-              <div class="timeline-item"><time>2023.07 - 至今</time><h3>AI 芯片设计工程师</h3><p>参与视频处理 SoC 与自研 NPU IP 研发，工作覆盖低功耗设计、RTL 实现、EDA Flow、自动化脚本、SystemC 建模与微架构性能分析。</p></div><div class="timeline-item"><time>2020.09 - 2023.07</time><h3>西安电子科技大学 · 硕士</h3><p>微电子学与固体电子学方向，成绩排名 TOP1%，获研究生国家奖学金；以学生第一作者身份发表 SCI 论文并获得授权专利。</p></div><div class="timeline-item"><time>2016.09 - 2020.06</time><h3>西安电子科技大学 · 本科</h3><p>微电子科学与工程专业，系统学习半导体器件、数字集成电路、模拟电路与芯片设计基础。</p></div>
+              <div class="timeline-item"><time>2023.07 - 至今</time><h3>AI 芯片设计工程师</h3><p>参与自研 NPU IP 与视觉类AI SoC研发，工作覆盖SystemC 建模、微架构设计与实现、 图像加速器子系统模块设计与RTL实现、 低功耗设计全流程等。</p></div><div class="timeline-item"><time>2020.09 - 2023.07</time><h3>西安电子科技大学 · 硕士</h3><p>微电子学与固体电子学方向，成绩TOP1%，获研究生国家奖学金；两篇一作SCI ；两篇学生一作已授权专利；学硕班班长；</p></div><div class="timeline-item"><time>2016.09 - 2020.06</time><h3>西安电子科技大学 · 本科</h3><p>微电子科学与工程专业，系统学习数字集成电路、半导体器件、半导体工艺、计算机体系结构等基础课程；考研成绩专业第一；</p></div>
             </div>
           </div>
         </div>
@@ -159,7 +159,7 @@
       <h3>西安电子科技大学 · 微电子学院</h3>
       <p>本科 · 微电子科学与工程</p>
     </div>
-    <div class="tag-row"><span class="tag">首批国家示范性微电子学院</span><span class="tag">系统学习数字 IC、器件、工艺与芯片设计基础</span></div>
+    <div class="tag-row"><span class="tag">首批国家示范性微电子学院</span><span class="tag">系统学习数字 IC、器件、工艺与芯片设计基础</span><span class="tag">考研专业第一</span></div>
   </article>
 </div>
         </div>
