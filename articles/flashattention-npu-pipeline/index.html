@@ -94,7 +94,7 @@
 <p>这样一来，整条流水可能两拍才能接收一个新的 micro-block进行计算，initiation interval 从 1 变成 2。</p>
 <p>对 NPU/推理芯片来说，这很致命：QK、exp、rowsum、PV 都能持续流，最后被一个标量递推卡住吞吐。</p>
 <h2 id="3-用-lookahead-展开打破一拍依赖">3. 用 Lookahead 展开打破一拍依赖</h2>
-<p><strong>既然 @@TOKEN_0@@ 依赖 @@TOKEN_1@@ ,而 @@TOKEN_2@@ 又依赖 @@TOKEN_3@@ ,那么@@TOKEN_4@@ 就必定间接依赖 @@TOKEN_5@@ 。如果将 @@TOKEN_6@@ 转换为 @@TOKEN_7@@ 的表达式，即便每两拍出一个新的@@TOKEN_8@@，那么实际上仍等价于每拍出一个新的@@TOKEN_9@@：</strong></p>
+<p>既然 <span class="math-inline">\(\ell_n\)</span> 依赖 <span class="math-inline">\(\ell_{n-1}\)</span> ,而 <span class="math-inline">\(\ell_{n-1}\)</span> 又依赖 <span class="math-inline">\(\ell_{n-2}\)</span> ,那么<span class="math-inline">\(\ell_n\)</span> 就必定间接依赖 <span class="math-inline">\(\ell_{n-2}\)</span> 。如果将 <span class="math-inline">\(\ell_n\)</span> 转换为 <span class="math-inline">\(\ell_{n-2}\)</span> 的表达式，即便每两拍出一个新的<span class="math-inline">\(\ell_{n+2}\)</span>，那么实际上仍等价于每拍出一个新的<span class="math-inline">\(\ell_{n+1}\)</span>：</p>
 <p>先写原始递推：</p>
 <div class="math-block">\[\ell_n=a_n\ell_{n-1}+r_n\]</div>
 <p>上一项为：</p>
