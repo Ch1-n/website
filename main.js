@@ -3,9 +3,10 @@ const statusEl = document.querySelector("#form-status");
 const articleSearch = document.querySelector("#article-search");
 const articleList = document.querySelector("#article-list");
 const categoryFilter = document.querySelector("#category-filter");
+const tagFilter = document.querySelector("#tag-filter");
 const articleEmpty = document.querySelector("#article-empty");
 const revealTargets = document.querySelectorAll(
-  ".hero .eyebrow, .hero h1, .hero-lede, .hero-actions, .signal-panel, .page-hero .eyebrow, .page-hero h1, .page-hero p, .resume-snapshot, .article-search, .category-filter, .section-head, .card, .timeline-item, .article-card, .contact-copy, .contact-form, .post h1, .post-lede, .post-cover"
+  ".hero .eyebrow, .hero h1, .hero-lede, .hero-actions, .signal-panel, .page-hero .eyebrow, .page-hero h1, .page-hero p, .resume-snapshot, .article-search, .category-filter, .tag-filter, .section-head, .card, .timeline-item, .article-card, .contact-copy, .contact-form, .post h1, .post-lede, .post-cover"
 );
 const nav = document.querySelector(".nav");
 const siteConfig = window.SITE_CONFIG || {};
@@ -97,6 +98,7 @@ window.addEventListener("scroll", syncNavShadow, { passive: true });
 
 if (articleList) {
   let activeCategory = "all";
+  let activeTag = "all";
 
   const filterArticles = () => {
     const query = articleSearch?.value.trim().toLowerCase() || "";
@@ -104,8 +106,10 @@ if (articleList) {
 
     articleList.querySelectorAll(".article-card").forEach((card) => {
       const matchesCategory = activeCategory === "all" || card.dataset.category === activeCategory;
+      const tags = (card.dataset.tags || "").split("|").filter(Boolean);
+      const matchesTag = activeTag === "all" || tags.includes(activeTag);
       const matchesQuery = !query || card.textContent.toLowerCase().includes(query);
-      const isVisible = matchesCategory && matchesQuery;
+      const isVisible = matchesCategory && matchesTag && matchesQuery;
       card.hidden = !isVisible;
       if (isVisible) visibleCount += 1;
     });
@@ -120,6 +124,16 @@ if (articleList) {
     if (!button) return;
     activeCategory = button.dataset.category || "all";
     categoryFilter.querySelectorAll(".category-button").forEach((item) => {
+      item.classList.toggle("active", item === button);
+    });
+    filterArticles();
+  });
+
+  tagFilter?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-tag]");
+    if (!button) return;
+    activeTag = button.dataset.tag || "all";
+    tagFilter.querySelectorAll(".tag-button").forEach((item) => {
       item.classList.toggle("active", item === button);
     });
     filterArticles();

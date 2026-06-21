@@ -456,7 +456,7 @@ h3 {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 
 .category-button {
@@ -484,6 +484,40 @@ h3 {
   border-color: var(--ink);
   background: var(--ink);
   color: #fff;
+}
+
+.tag-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.tag-button {
+  min-height: 32px;
+  border: 1px solid #dfe6f1;
+  border-radius: 8px;
+  padding: 5px 10px;
+  background: #fff;
+  color: #526071;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 680;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.tag-button:hover {
+  border-color: rgba(15, 118, 110, 0.28);
+  color: var(--accent-2);
+  background: #f4fbfa;
+  transform: translateY(-1px);
+}
+
+.tag-button.active {
+  border-color: rgba(15, 118, 110, 0.32);
+  background: #e8f6f4;
+  color: var(--accent-2);
 }
 
 .article-card {

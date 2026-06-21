@@ -7,7 +7,7 @@
     <meta name="description" content="AI 推理芯片设计工程师个人主页，整理 NPU 架构、视频处理 SoC、低功耗设计、SystemC 建模与硬件流水实现相关经历和技术文章。" />
     <script>document.documentElement.classList.add("js");</script>
     <script>window.SITE_CONFIG={"basePath":"/website","contactApiBase":"","emailjs":{"serviceId":"QQ service_3vgpasm","templateId":"template_ukyfa7m","publicKey":"HY_NPIaIkw5fY4BKG","toEmail":"kvinkin@qq.com"}};</script>
-    <link rel="stylesheet" href="/website/styles.css?v=20260621-categories" />
+    <link rel="stylesheet" href="/website/styles.css?v=20260621-tags" />
     
   </head>
   <body>
@@ -50,8 +50,12 @@
             <button class="category-button active" type="button" data-category="all">全部</button>
             <button class="category-button" type="button" data-category="NPU设计">NPU设计</button><button class="category-button" type="button" data-category="数字IC">数字IC</button><button class="category-button" type="button" data-category="低功耗设计">低功耗设计</button><button class="category-button" type="button" data-category="技术随笔">技术随笔</button>
           </div>
+          <div class="tag-filter" id="tag-filter" aria-label="文章标签">
+            <button class="tag-button active" type="button" data-tag="all">全部标签</button>
+            <button class="tag-button" type="button" data-tag="FlashAttention">#FlashAttention</button><button class="tag-button" type="button" data-tag="Online Softmax">#Online Softmax</button><button class="tag-button" type="button" data-tag="NPU">#NPU</button><button class="tag-button" type="button" data-tag="Pipeline">#Pipeline</button><button class="tag-button" type="button" data-tag="Lookahead">#Lookahead</button>
+          </div>
           <div class="article-grid article-list" id="article-list">
-  <article class="article-card" data-category="NPU设计">
+  <article class="article-card" data-category="NPU设计" data-tags="FlashAttention|Online Softmax|NPU">
     <a class="article-image-link" href="/website/articles/flashattention-online-softmax/" aria-label="AI推理芯片/NPU设计中如何实现高效的FlashAttention">
       <img src="/website/assets/fa3_algorithm_white.jpg" alt="FlashAttention-3 Algorithm" loading="lazy" />
     </a>
@@ -63,7 +67,7 @@
     </div>
   </article>
 
-  <article class="article-card" data-category="NPU设计">
+  <article class="article-card" data-category="NPU设计" data-tags="NPU|Pipeline|Lookahead">
     <a class="article-image-link" href="/website/articles/flashattention-npu-pipeline/" aria-label="如何在NPU设计中加速 FlashAttention 计算">
       <img src="/website/assets/pipeline_cover.png" alt="FlashAttention pipeline cover" loading="lazy" />
     </a>
@@ -86,6 +90,6 @@
         <span>Built for silicon notes and technical writing.</span>
       </div>
     </footer>
-    <script src="/website/main.js?v=20260621-categories"></script>
+    <script src="/website/main.js?v=20260621-tags"></script>
   </body>
 </html>
