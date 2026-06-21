@@ -7,7 +7,7 @@
     <meta name="description" content="AI 推理芯片设计工程师个人主页，整理 NPU 架构、视频处理 SoC、低功耗设计、SystemC 建模与硬件流水实现相关经历和技术文章。" />
     <script>document.documentElement.classList.add("js");</script>
     <script>window.SITE_CONFIG={"basePath":"/website","contactApiBase":"","emailjs":{"serviceId":"QQ service_3vgpasm","templateId":"template_ukyfa7m","publicKey":"HY_NPIaIkw5fY4BKG","toEmail":"kvinkin@qq.com"}};</script>
-    <link rel="stylesheet" href="/website/styles.css?v=20260621-emailjs" />
+    <link rel="stylesheet" href="/website/styles.css?v=20260621-categories" />
     
   </head>
   <body>
@@ -45,31 +45,38 @@
       </section>
 
       <section class="section">
-        <div class="shell article-grid article-list" id="article-list">
-  <article class="article-card">
+        <div class="shell">
+          <div class="category-filter" id="category-filter" aria-label="文章分类">
+            <button class="category-button active" type="button" data-category="all">全部</button>
+            <button class="category-button" type="button" data-category="NPU设计">NPU设计</button><button class="category-button" type="button" data-category="数字IC">数字IC</button><button class="category-button" type="button" data-category="低功耗设计">低功耗设计</button><button class="category-button" type="button" data-category="技术随笔">技术随笔</button>
+          </div>
+          <div class="article-grid article-list" id="article-list">
+  <article class="article-card" data-category="NPU设计">
     <a class="article-image-link" href="/website/articles/flashattention-online-softmax/" aria-label="AI推理芯片/NPU设计中如何实现高效的FlashAttention">
       <img src="/website/assets/fa3_algorithm_white.jpg" alt="FlashAttention-3 Algorithm" loading="lazy" />
     </a>
     <div class="article-body">
-      <div class="article-meta"><span>FlashAttention</span><span>FlashAttention</span><span>Online Softmax</span><span>NPU</span><span>2026-06-20</span></div>
+      <div class="article-meta"><span>NPU设计</span><span>FlashAttention</span><span>Online Softmax</span><span>NPU</span><span>2026-06-20</span></div>
       <h3><a href="/website/articles/flashattention-online-softmax/">AI推理芯片/NPU设计中如何实现高效的FlashAttention</a></h3>
       <p>从标准 Attention 和 safe softmax 出发，解释 FlashAttention 为什么可以分块算出精确 attention，并指出 FA3 伪代码中的缩放项问题。</p>
       <a class="read-link" href="/website/articles/flashattention-online-softmax/">阅读全文 →</a>
     </div>
   </article>
 
-  <article class="article-card">
+  <article class="article-card" data-category="NPU设计">
     <a class="article-image-link" href="/website/articles/flashattention-npu-pipeline/" aria-label="如何在NPU设计中加速 FlashAttention 计算">
       <img src="/website/assets/pipeline_cover.png" alt="FlashAttention pipeline cover" loading="lazy" />
     </a>
     <div class="article-body">
-      <div class="article-meta"><span>NPU Pipeline</span><span>NPU</span><span>Pipeline</span><span>Lookahead</span><span>2026-06-20</span></div>
+      <div class="article-meta"><span>NPU设计</span><span>NPU</span><span>Pipeline</span><span>Lookahead</span><span>2026-06-20</span></div>
       <h3><a href="/website/articles/flashattention-npu-pipeline/">如何在NPU设计中加速 FlashAttention 计算</a></h3>
       <p>聚焦 Online Softmax 的 loop-carried dependency，用 lookahead 展开把标量递推链路做成高吞吐全流水结构。</p>
       <a class="read-link" href="/website/articles/flashattention-npu-pipeline/">阅读全文 →</a>
     </div>
   </article>
 </div>
+          <div class="empty-result" id="article-empty" hidden>暂无匹配文章</div>
+        </div>
       </section>
     </main>
   
@@ -79,6 +86,6 @@
         <span>Built for silicon notes and technical writing.</span>
       </div>
     </footer>
-    <script src="/website/main.js?v=20260621-emailjs"></script>
+    <script src="/website/main.js?v=20260621-categories"></script>
   </body>
 </html>

@@ -2,8 +2,10 @@ const form = document.querySelector("#contact-form");
 const statusEl = document.querySelector("#form-status");
 const articleSearch = document.querySelector("#article-search");
 const articleList = document.querySelector("#article-list");
+const categoryFilter = document.querySelector("#category-filter");
+const articleEmpty = document.querySelector("#article-empty");
 const revealTargets = document.querySelectorAll(
-  ".hero .eyebrow, .hero h1, .hero-lede, .hero-actions, .signal-panel, .page-hero .eyebrow, .page-hero h1, .page-hero p, .resume-snapshot, .article-search, .section-head, .card, .timeline-item, .article-card, .contact-copy, .contact-form, .post h1, .post-lede, .post-cover"
+  ".hero .eyebrow, .hero h1, .hero-lede, .hero-actions, .signal-panel, .page-hero .eyebrow, .page-hero h1, .page-hero p, .resume-snapshot, .article-search, .category-filter, .section-head, .card, .timeline-item, .article-card, .contact-copy, .contact-form, .post h1, .post-lede, .post-cover"
 );
 const nav = document.querySelector(".nav");
 const siteConfig = window.SITE_CONFIG || {};
@@ -93,13 +95,37 @@ const sendWithEmailJsBrowser = async (payload) => {
 syncNavShadow();
 window.addEventListener("scroll", syncNavShadow, { passive: true });
 
-if (articleSearch && articleList) {
-  articleSearch.addEventListener("input", () => {
-    const query = articleSearch.value.trim().toLowerCase();
+if (articleList) {
+  let activeCategory = "all";
+
+  const filterArticles = () => {
+    const query = articleSearch?.value.trim().toLowerCase() || "";
+    let visibleCount = 0;
+
     articleList.querySelectorAll(".article-card").forEach((card) => {
-      card.hidden = query.length > 0 && !card.textContent.toLowerCase().includes(query);
+      const matchesCategory = activeCategory === "all" || card.dataset.category === activeCategory;
+      const matchesQuery = !query || card.textContent.toLowerCase().includes(query);
+      const isVisible = matchesCategory && matchesQuery;
+      card.hidden = !isVisible;
+      if (isVisible) visibleCount += 1;
     });
+
+    if (articleEmpty) articleEmpty.hidden = visibleCount > 0;
+  };
+
+  articleSearch?.addEventListener("input", filterArticles);
+
+  categoryFilter?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-category]");
+    if (!button) return;
+    activeCategory = button.dataset.category || "all";
+    categoryFilter.querySelectorAll(".category-button").forEach((item) => {
+      item.classList.toggle("active", item === button);
+    });
+    filterArticles();
   });
+
+  filterArticles();
 }
 
 if (form && statusEl) {
