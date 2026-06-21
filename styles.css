@@ -366,6 +366,11 @@ h3 {
   margin: 0;
 }
 
+.resume-capability .section-note {
+  max-width: 760px;
+  text-wrap: balance;
+}
+
 .resume-grid {
   display: grid;
   grid-template-columns: 0.82fr 1.18fr;
