@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>如何在NPU设计中加速 FlashAttention 计算 | Kv Ch'in</title>
+    <meta name="description" content="聚焦 Online Softmax 的 loop-carried dependency，用 lookahead 展开把标量递推链路做成高吞吐全流水结构。" />
+    <script>document.documentElement.classList.add("js");</script>
+    <script>window.SITE_CONFIG={"basePath":"/website","contactApiBase":"","emailjs":{"serviceId":"QQ service_3vgpasm","templateId":"template_ukyfa7m","publicKey":"HY_NPIaIkw5fY4BKG","toEmail":"kvinkin@qq.com"}};</script>
+    <link rel="stylesheet" href="/website/styles.css?v=20260621-emailjs" />
+    <script>window.MathJax={tex:{inlineMath:[["\\(","\\)"]],displayMath:[["\\[","\\]"]]},svg:{fontCache:"global"}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  </head>
+  <body>
+    
+  <nav class="nav">
+    <div class="shell nav-inner">
+      <a class="brand" href="/website/" aria-label="首页">
+        <span class="brand-mark">K</span>
+        <span>Kv Ch'in</span>
+      </a>
+      <div class="nav-links">
+        <a class="" href="/website/">首页</a>
+        <a class="" href="/website/resume/">简历</a>
+        <a class="active" href="/website/articles/">文章</a>
+        <a href="/website/#contact">联系</a>
+        <a class="nav-cta" href="/website/articles/flashattention-npu-pipeline/">最新文章</a>
+      </div>
+    </div>
+  </nav>
+
+    
+      <main class="shell article-layout">
+        <article class="post">
+          <a class="back-link" href="/website/articles/">← 返回文章列表</a>
+          <h1>如何在NPU设计中加速 FlashAttention 计算</h1>
+          <p class="post-lede">聚焦 Online Softmax 的 loop-carried dependency，用 lookahead 展开把标量递推链路做成高吞吐全流水结构。</p>
+          <div class="article-meta"><span>NPU Pipeline</span><span>NPU</span><span>Pipeline</span><span>Lookahead</span><span>2026-06-20</span></div>
+          <figure class="post-cover">
+            <img src="/website/assets/pipeline_cover.png" alt="FlashAttention pipeline cover" />
+          </figure>
+          <p>上一篇主要讲了FlashAttention 的大致硬件计算流程。</p>
+<p>这篇换一个视角：<strong>如果要在推理芯片/NPU 上实现 FlashAttention，怎样把它做成全流水、高吞吐结构？</strong></p>
+<p>矩阵乘、load/store、rowmax、exp、rowsum等这些步骤本身都比较容易做流水。真正容易卡住的地方，反而是 Online Softmax 里的部分和更新：</p>
+<div class="math-block">\[\ell_n=a_n\ell_{n-1}+r_n\]</div>
+<p>其中：</p>
+<div class="math-block">\[a_n=\exp(m_{n-1}-m_n)\]</div>
+<p>这个式子看起来很简单，但它有一个麻烦的 loop-carried dependency：当前 <span class="math-inline">\(\ell_n\)</span> 依赖上一拍的 <span class="math-inline">\(\ell_{n-1}\)</span>，这一步需要算浮点乘 浮点加，很显然一拍算不完。</p>
+<p>如果这条标量链路不能做到一拍一个结果，那么前面再大的矩阵乘吞吐也会在这里被限流。</p>
+<h2 id="1-flashattention-的硬件流水视角">1. FlashAttention 的硬件流水视角</h2>
+<p>以单头 attention 为例：</p>
+<ul>
+<li><span class="math-inline">\(Q \in \mathbb{R}^{N\times d}\)</span>；</li>
+<li><span class="math-inline">\(K,V \in \mathbb{R}^{N\times d}\)</span>；</li>
+<li><span class="math-inline">\(Q\)</span> 按行切成 <span class="math-inline">\(B_r\times d\)</span> 的小块；</li>
+<li><span class="math-inline">\(K,V\)</span> 按行切成 <span class="math-inline">\(B_c\times d\)</span> 的小块。</li>
+</ul>
+<p>对于一个 query block：</p>
+<div class="math-block">\[Q_i\in \mathbb{R}^{B_r\times d}\]</div>
+<p>遍历所有 key/value block：</p>
+<div class="math-block">\[K_j,V_j\in \mathbb{R}^{B_c\times d}\]</div>
+<p>当前 score block 为： <span class="math-inline">\(S_i^{(j)}=Q_iK_j^T\)</span></p>
+<figure class="post-cover"><img src="/website/assets/fa3_flow_white.jpg" alt="FlashAttention 分块计算示意图" loading="lazy" /><figcaption>FlashAttention 分块计算示意图</figcaption></figure>
+<p>FlashAttention 分块计算示意图</p>
+<p>从芯片实现角度，可以抽象为若干步骤：</p>
+<p>Tensor--矩阵运算单元；Vect.--向量运算单元；Acvt.--激活函数运算单元；Scalar--标量运算单元；</p>
+<ol>
+<li>搬运小块矩阵到片上 SRAM；</li>
+<li>Tesnsor计算 <span class="math-inline">\(S_i^{(j)}=Q_iK_j^T\)</span>；</li>
+<li>Vect对 <span class="math-inline">\(S_i^{(j)}\)</span> 做 rowmax以及 <span class="math-inline">\(S_i^{(j)}-m_i\)</span> ；</li>
+<li>Acvt计算 <span class="math-inline">\({\widetilde{\mathbf{P}}}_i^{\left(j\right)}=\exp{\left(\mathbf{S}_i^{\left(j\right)}-m_i\right)}\)</span> ，同时Scalar计算 <span class="math-inline">\(a_i=\exp{\left(m_i^{\mathrm{old}}-m_i\right)}\)</span> ；</li>
+<li>Vect对上步输出的exp值做rowsum 得到当前 block 的 denominator 增量 <span class="math-inline">\(r_i\)</span> ；</li>
+<li>Scalar更新 <span class="math-inline">\(\ell_i=a_i\ell_i+r_i\)</span> ；</li>
+<li>Tensor算 <span class="math-inline">\({\widetilde{\mathbf{P}}}_i^{\left(j\right)}\mathbf{V}_j\)</span>；</li>
+<li>Vect更新 <span class="math-inline">\({\widetilde{\mathbf{O}}}_i={a_i}{\widetilde{\mathbf{O}}}_{i}+{\widetilde{\mathbf{P}}}_i^{\left(j\right)}\mathbf{V}_j\)</span></li>
+<li>遍历完所有j块后，scalar算 <span class="math-inline">\(\ell_i^{-1}\)</span> ；</li>
+<li>最后tensor做<span class="math-inline">\(\mathbf{O}_i=\mathrm{diag}\left(\ell_i\right)^{-1}{\widetilde{\mathbf{O}}}_i\)</span> ，或vect做 <span class="math-inline">\(\mathbf{O}_i=\ell_i^{-1}{\widetilde{\mathbf{O}}}_i\)</span> 。</li>
+</ol>
+<p>前面几级都比较常规，均可以在特定engine内实现流水化计算，但是到了第 6 步，就有点问题了。第6步等号左侧的 <span class="math-inline">\(li\)</span> 是新的，等号右侧的 <span class="math-inline">\(li\)</span> 是上拍的。单独拎出来该公式如下：</p>
+<p><span class="math-inline">\(\ell_n=a_n\ell_{n-1}+r_n\)</span>用 <span class="math-inline">\(n\)</span> 表示当前拍， <span class="math-inline">\(n-1\)</span> 为上拍，其中 <span class="math-inline">\(a_n=\exp(m_{n-1}-m_n)\)</span> 。该系数的运算<span class="math-inline">\(exp{\left(m_i^{\mathrm{old}}-m_i\right)}\)</span> 在步骤3之后就可由scalar进行 。到了第6步，还需要一个乘法 一个加法才能完成。即有了 <span class="math-inline">\(\ell_{n-1}\)</span> 后，还需要对他进行乘法 + 加法操作。</p>
+<p>这两步的浮点运算，在FP32~FP20格式范围内，一拍很难算完，假定这里2拍可以搞定。这块没法直接做成打拍的多级流水，因为每2拍才输出一个新的 <span class="math-inline">\(\ell_n\)</span> ，这就是典型的loop-carried dependency，即本次循环迭代 <span class="math-inline">\(\ell_n\)</span> 的计算，必须等待上一轮迭代 <span class="math-inline">\(\ell_{n-1}\)</span> 的输出结果，而每轮 <span class="math-inline">\(\ell_n\)</span> 的计算需要两拍时，整个流水线的吞吐率就被砍半了。</p>
+<p>下面进行更直观的拆解步骤。</p>
+<h2 id="2-步骤6流水降速拆解">2. 步骤6流水降速拆解</h2>
+<p>假设每拍都能产生新的 <span class="math-inline">\(a_n\)</span> 和 <span class="math-inline">\(r_n\)</span>，理想情况当然是每拍也吐出一个新的 <span class="math-inline">\(\ell_n\)</span>。</p>
+<p>但该处更新至少包含：</p>
+<ol>
+<li>乘法：<span class="math-inline">\(a_n\ell_{n-1}\)</span>；</li>
+<li>加法：<span class="math-inline">\(a_n\ell_{n-1}+r_n\)</span>。</li>
+</ol>
+<p>如果乘加路径需要两拍，就会变成：</p>
+<pre><code>第 t 拍：拿到 l_{n-1}
+第 t+1 拍：完成乘法
+第 t+2 拍：完成加法，得到 l_n</code></pre>
+<p>下一项 <span class="math-inline">\(\ell_{n+1}\)</span> 又必须等 <span class="math-inline">\(\ell_n\)</span> 出来。</p>
+<p>这样一来，整条流水可能两拍才能接收一个新的 micro-block进行计算，initiation interval 从 1 变成 2。</p>
+<p>对 NPU/推理芯片来说，这很致命：QK、exp、rowsum、PV 都能持续流，最后被一个标量递推卡住吞吐。</p>
+<h2 id="3-用-lookahead-展开打破一拍依赖">3. 用 Lookahead 展开打破一拍依赖</h2>
+<p><strong>既然 @@TOKEN_0@@ 依赖 @@TOKEN_1@@ ,而 @@TOKEN_2@@ 又依赖 @@TOKEN_3@@ ,那么@@TOKEN_4@@ 就必定间接依赖 @@TOKEN_5@@ 。如果将 @@TOKEN_6@@ 转换为 @@TOKEN_7@@ 的表达式，即便每两拍出一个新的@@TOKEN_8@@，那么实际上仍等价于每拍出一个新的@@TOKEN_9@@：</strong></p>
+<p>先写原始递推：</p>
+<div class="math-block">\[\ell_n=a_n\ell_{n-1}+r_n\]</div>
+<p>上一项为：</p>
+<div class="math-block">\[\ell_{n-1}=a_{n-1}\ell_{n-2}+r_{n-1}\]</div>
+<p>代入：</p>
+<div class="math-block">\[\ell_n = a_n(a_{n-1}\ell_{n-2}+r_{n-1})+r_n\]</div>
+<p>展开：</p>
+<div class="math-block">\[\ell_n = a_na_{n-1}\ell_{n-2} + a_nr_{n-1} + r_n\]</div>
+<p>再把 <span class="math-inline">\(a_n\)</span> 写回 exp 形式：</p>
+<div class="math-block">\[a_n=\exp(m_{n-1}-m_n)\]</div>
+<div class="math-block">\[a_{n-1}=\exp(m_{n-2}-m_{n-1})\]</div>
+<p>所以：</p>
+<div class="math-block">\[a_na_{n-1} = \exp(m_{n-2}-m_n)\]</div>
+<p>最终得到：</p>
+<div class="math-block">\[\ell_n = \exp(m_{n-2}-m_n)\ell_{n-2} + \exp(m_{n-1}-m_n)r_{n-1} + r_n\]</div>
+<p>写成硬件更直观的形式：</p>
+<div class="math-block">\[\ell_n = scale_{acc}\cdot \ell_{n-2} + scale_{prev}\cdot r_{n-1} + r_n\]</div>
+<p>其中：</p>
+<div class="math-block">\[scale_{acc}=\exp(m_{n-2}-m_n)\]</div>
+<div class="math-block">\[scale_{prev}=\exp(m_{n-1}-m_n)\]</div>
+<p>可以看到从 <span class="math-inline">\(\ell_n \leftarrow \ell_{n-1}\)</span> 转变为了 <span class="math-inline">\(\ell_n \leftarrow \ell_{n-2}\)</span> 。</p>
+<p>要计算出最终的 <span class="math-inline">\(\ell_n\)</span> ，下述两套计算链路均可以实现：</p>
+<pre><code>偶数链：l_0 -&gt; l_2 -&gt; l_4 -&gt; l_6 -&gt; ...
+奇数链：l_1 -&gt; l_3 -&gt; l_5 -&gt; l_7 -&gt; ...</code></pre>
+<p>所以我们仅需在硬件中做出偶数链或奇数链。以偶数链为例，如果最终的 <span class="math-inline">\(n\)</span> 是偶数，直接就能算出；如果最终的 <span class="math-inline">\(n\)</span> 是奇数，那么在最后一步稍微处理一下，重新按照 <span class="math-inline">\(\ell_n=a_n\ell_{n-1}+r_n\)</span> 递推公式计算即可。</p>
+<p>这不是近似算法，也没有改变 softmax 的数学意义。只是把同一个递推式展开了一步，把依赖距离从 1 拉到 2。</p>
+<h2 id="4-硬件里需要维护什么">4. 硬件里需要维护什么？</h2>
+<p>根据：</p>
+<div class="math-block">\[\ell_n = \exp(m_{n-2}-m_n)\ell_{n-2} + \exp(m_{n-1}-m_n)r_{n-1} + r_n\]</div>
+<p>硬件里需要维护：</p>
+<ul>
+<li><span class="math-inline">\(\ell_{n-2}\)</span>：两拍前的部分和；</li>
+<li><span class="math-inline">\(r_{n-1}\)</span>：上一拍的 rowsum；</li>
+<li><span class="math-inline">\(m_{n-2}\)</span>：两拍前的最大值；</li>
+<li><span class="math-inline">\(m_{n-1}\)</span>：上一拍的最大值；</li>
+<li>当前拍的 <span class="math-inline">\(m_n\)</span> 和 <span class="math-inline">\(r_n\)</span>。</li>
+</ul>
+<p>当前拍 rowmax 得到 <span class="math-inline">\(m_n\)</span> 后，采用流水依次计算两个系数：</p>
+<div class="math-block">\[scale_{prev}=\exp(m_{n-1}-m_n)\]</div>
+<div class="math-block">\[scale_{acc}=\exp(m_{n-2}-m_n)\]</div>
+<p>然后：</p>
+<div class="math-block">\[tmp=scale_{prev}\cdot r_{n-1}+r_n\]</div>
+<div class="math-block">\[\ell_n=scale_{acc}\cdot \ell_{n-2}+tmp\]</div>
+<pre><code>第 t 拍  ：算scale_{prev}
+第 t+1 拍：算scale_{acc}
+...假设exp流水线为6拍...
+第 t+ 6拍：scale_{prev}出结果，与r_{n-1}相乘
+第 t+ 7拍：scale_{prev} * r_{n-1}出结果，这个结果 + r_{n}算tmp;scale_{acc}出结果，与l_{n-2}相乘
+第 t+ 8拍：tmp出结果；scale_{acc} * l_{n-2}出结果；二者再相加
+第 t+ 8拍：l_{n}出结果</code></pre>
+<h2 id="5-延伸-反馈延迟深度超过两拍">5. 延伸-反馈延迟深度超过两拍</h2>
+<p>两步展开适合反馈延迟为两拍的情况。</p>
+<p>如果反馈路径需要 <span class="math-inline">\(L\)</span> 拍，可以继续做 <span class="math-inline">\(L\)</span> 步 lookahead。</p>
+<p>原始递推：</p>
+<div class="math-block">\[\ell_n=a_n\ell_{n-1}+r_n\]</div>
+<p>本质上是一个 affine transform：</p>
+<div class="math-block">\[T_n(x)=a_nx+r_n\]</div>
+<p>多个 step 可以组合：</p>
+<div class="math-block">\[T_n(T_{n-1}(x)) = (a_na_{n-1})x+(a_nr_{n-1}+r_n)\]</div>
+<p>更一般地，连续 <span class="math-inline">\(L\)</span> 个 step 可以写成：</p>
+<div class="math-block">\[\ell_n=A_n\ell_{n-L}+B_n\]</div>
+<p>其中 <span class="math-inline">\(A_n\)</span> 是一串 scale 的乘积，<span class="math-inline">\(B_n\)</span> 是一串经过 scale 修正后的 rowsum 累加。</p>
+<p>从更一般的角度看，这就是 affine recurrence 的 lookahead，也可以理解为一种 prefix/scan 化的实现思路。</p>
+<h2 id="6-o-的更新也可以做类似展开">6. O 的更新也可以做类似展开</h2>
+<p>denominator 是：</p>
+<div class="math-block">\[\ell_n=a_n\ell_{n-1}+r_n\]</div>
+<p>output numerator 是：</p>
+<div class="math-block">\[O_n=a_nO_{n-1}+U_n\]</div>
+<p>其中：</p>
+<div class="math-block">\[U_n=P_nV_n\]</div>
+<p>同样展开一步：</p>
+<div class="math-block">\[O_n = a_na_{n-1}O_{n-2} + a_nU_{n-1} + U_n\]</div>
+<p>也就是：</p>
+<div class="math-block">\[O_n = \exp(m_{n-2}-m_n)O_{n-2} + \exp(m_{n-1}-m_n)U_{n-1} + U_n\]</div>
+<p>不过 <span class="math-inline">\(O_n\)</span> 不是标量，通常会由更宽的 vect/tensor pipeline 承担；<span class="math-inline">\(\ell_n\)</span> 是每行一个标量，反而更容易成为控制和归一化链路上的瓶颈。</p>
+<p>所以如果要突出“最难流水起来的地方”，<span class="math-inline">\(\ell_n\)</span> 是一个非常好的切入点。</p>
+<h2 id="7-小结">7. 小结</h2>
+<p>FlashAttention 在推理芯片上要跑满，不只是 QK 和 PV 要快。</p>
+<p>Online Softmax 里的递推：</p>
+<div class="math-block">\[\ell_n=a_n\ell_{n-1}+r_n\]</div>
+<p>会形成loop-carried dependency。如果这里是 <span class="math-inline">\(n\)</span> 拍完成，如果不处理，整条FlashAttention流水线的吞吐率将会降为全流水的 <span class="math-inline">\(1/n\)</span> 。</p>
+<p>通过 lookahead 展开：</p>
+<div class="math-block">\[\ell_n = a_na_{n-1}\ell_{n-2} + a_nr_{n-1} + r_n\]</div>
+<p>可以把依赖从 <span class="math-inline">\(\ell_{n-1}\)</span> 拉到 <span class="math-inline">\(\ell_{n-2}\)</span>，再用奇数链或偶数链进行计算，把两拍反馈链路做成等价于每拍均输出的高吞吐全流水结构。</p>
+<p>全文可总结为：</p>
+<blockquote>所以说，不只是 QK 和 PV 要快，整个Online Softmax都要快， 尤其 <span class="math-inline">\(\ell\)</span> 和 <span class="math-inline">\(O\)</span> 的递推链路。可以对整个FlashAttention做全流水化处理；算法上的 Online Softmax 解决“分块怎么算对”，而 NPU 上的全流水实现还要解决“递推链路怎么不断流”；<span class="math-inline">\(\ell_n=a_n\ell_{n-1}+r_n\)</span> 的 lookahead 展开，就是打破这个短反馈瓶颈的关键。</blockquote>
+<p>参考：</p>
+<ul>
+<li>FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision：</li>
+</ul>
+<p><a href="https://arxiv.org/abs/2407.08608" target="_blank" rel="noopener noreferrer">https://arxiv.org/abs/2407.08608</a></p>
+<ul>
+<li>Dao-AILab/flash-attention 官方实现：<a href="https://github.com/Dao-AILab/flash-attention" target="_blank" rel="noopener noreferrer">https://github.com/Dao-AILab/flash-attention</a></li>
+</ul>
+          <nav class="article-nav">
+            <a href="/website/articles/flashattention-online-softmax/">上一篇：AI推理芯片/NPU设计中如何实现高效的FlashAttention</a>
+            <span></span>
+          </nav>
+        </article>
+
+        <aside class="toc">
+          <strong>目录</strong>
+          <a class="toc-level-2" href="#1-flashattention-的硬件流水视角">1. FlashAttention 的硬件流水视角</a><a class="toc-level-2" href="#2-步骤6流水降速拆解">2. 步骤6流水降速拆解</a><a class="toc-level-2" href="#3-用-lookahead-展开打破一拍依赖">3. 用 Lookahead 展开打破一拍依赖</a><a class="toc-level-2" href="#4-硬件里需要维护什么">4. 硬件里需要维护什么？</a><a class="toc-level-2" href="#5-延伸-反馈延迟深度超过两拍">5. 延伸-反馈延迟深度超过两拍</a><a class="toc-level-2" href="#6-o-的更新也可以做类似展开">6. O 的更新也可以做类似展开</a><a class="toc-level-2" href="#7-小结">7. 小结</a>
+        </aside>
+      </main>
+    
+    <footer class="footer">
+      <div class="shell footer-inner">
+        <span>© 2026 Kv Ch'in</span>
+        <span>Built for silicon notes and technical writing.</span>
+      </div>
+    </footer>
+    <script src="/website/main.js?v=20260621-emailjs"></script>
+  </body>
+</html>
