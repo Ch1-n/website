@@ -7,7 +7,7 @@
     <meta name="description" content="AI 推理芯片设计工程师个人主页，整理 NPU 架构、视频处理 SoC、低功耗设计、SystemC 建模与硬件流水实现相关经历和技术文章。" />
     <script>document.documentElement.classList.add("js");</script>
     <script>window.SITE_CONFIG={"basePath":"/website","contactApiBase":"","emailjs":{"serviceId":"QQ service_3vgpasm","templateId":"template_ukyfa7m","publicKey":"HY_NPIaIkw5fY4BKG","toEmail":"kvinkin@qq.com"}};</script>
-    <link rel="stylesheet" href="/website/styles.css?v=20260621-tags" />
+    <link rel="stylesheet" href="/website/styles.css?v=20260621-resume-layout" />
     
   </head>
   <body>
@@ -30,8 +30,8 @@
 
     
     <main>
-      <section class="page-hero">
-        <div class="shell page-hero-grid">
+      <section class="page-hero resume-hero">
+        <div class="shell page-hero-grid resume-hero-grid">
           <div>
             <span class="eyebrow">Resume</span>
             <h1>AI 芯片 / NPU 设计工程师</h1>
@@ -56,17 +56,17 @@
         </div>
       </section>
 
-      <section class="section">
+      <section class="section resume-capability">
         <div class="shell">
-          <div class="section-head">
+          <div class="section-head resume-section-head">
             <div>
               <h2 class="section-title">能力侧重点</h2>
               <p class="section-note">围绕 AI 芯片和视频处理 SoC，把架构、实现、低功耗和验证流程串起来。</p>
             </div>
-            <div class="resume-snapshot compact">
-              <strong>Current Stack</strong>
-              <div class="tag-row"><span class="tag">NPU / AI 芯片</span><span class="tag">数字 IC 设计</span><span class="tag">AI视觉类 SoC</span><span class="tag">SystemC bit/cycle 粒度建模</span><span class="tag">微架构设计 / RTL实现</span><span class="tag">低功耗设计 / UPF全流程</span><span class="tag">硬件全流水设计</span><span class="tag">FlashAttention</span><span class="tag">Online Softmax</span></div>
-            </div>
+          </div>
+          <div class="resume-stack-panel">
+            <strong>Current Stack</strong>
+            <div class="tag-row"><span class="tag">NPU / AI 芯片</span><span class="tag">数字 IC 设计</span><span class="tag">AI视觉类 SoC</span><span class="tag">SystemC bit/cycle 粒度建模</span><span class="tag">微架构设计 / RTL实现</span><span class="tag">低功耗设计 / UPF全流程</span><span class="tag">硬件全流水设计</span><span class="tag">FlashAttention</span><span class="tag">Online Softmax</span></div>
           </div>
           <div class="feature-grid">
             <article class="card card-pad"><h3>算法到硬件数据流</h3><p>关注算法递推关系、访存模式、片上缓存和流水反馈路径之间的约束，能把 Attention、激活函数、图像增强等计算拆成适合 NPU 落地的硬件结构。</p></article><article class="card card-pad"><h3>微架构与 RTL 实现</h3><p>独立承担图像加速器调度子系统、Debug 与边界扫描相关模块开发，习惯从接口协议、状态机、参数化复用、时序收敛和可验证性一起考虑实现方案。</p></article><article class="card card-pad"><h3>低功耗与工程闭环</h3><p>主导系统级低功耗方案与 UPF 规范，打通 DC、CLP/VCLP、Formality、前后仿与功耗统计流程，沉淀可复用的设计、验证和 sign-off 方法。</p></article>
@@ -78,7 +78,6 @@
         <div class="shell">
           <div class="section-head">
             <h2 class="section-title">项目经历</h2>
-            <p class="section-note">以下为适合公开展示的版本，保留核心指标和个人贡献，弱化内部代号与敏感细节。</p>
           </div>
           <div class="project-list">
   <article class="project-card">
@@ -172,6 +171,6 @@
         <span>Built for silicon notes and technical writing.</span>
       </div>
     </footer>
-    <script src="/website/main.js?v=20260621-tags"></script>
+    <script src="/website/main.js?v=20260621-resume-layout"></script>
   </body>
 </html>

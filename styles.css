@@ -410,6 +410,7 @@ h3 {
   color: #334155;
   font-size: 13px;
   font-weight: 650;
+  overflow-wrap: anywhere;
   transition: background 180ms ease, color 180ms ease, transform 180ms ease;
 }
 
@@ -885,6 +886,12 @@ h3 {
   align-items: end;
 }
 
+.resume-hero-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(400px, 460px);
+  gap: clamp(36px, 5vw, 72px);
+  align-items: center;
+}
+
 .page-hero h1 {
   margin: 14px 0 14px;
   max-width: 860px;
@@ -896,6 +903,12 @@ h3 {
   max-width: 780px;
   color: var(--muted);
   font-size: 19px;
+}
+
+.resume-hero p {
+  max-width: 900px;
+  font-size: clamp(17px, 1.35vw, 19px);
+  line-height: 1.75;
 }
 
 .resume-snapshot,
@@ -912,6 +925,11 @@ h3 {
   box-shadow: none;
 }
 
+.resume-hero .resume-snapshot {
+  width: 100%;
+  padding: clamp(22px, 2.4vw, 30px);
+}
+
 .resume-snapshot strong,
 .article-search span {
   display: block;
@@ -926,11 +944,26 @@ h3 {
   gap: 13px;
 }
 
+.resume-hero .profile-list {
+  gap: 0;
+}
+
 .profile-row {
   display: grid;
   gap: 3px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
+}
+
+.resume-hero .profile-row {
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 15px 0;
+}
+
+.resume-hero .profile-row:first-child {
+  padding-top: 0;
 }
 
 .profile-row:last-child {
@@ -951,6 +984,39 @@ h3 {
   color: var(--ink);
   font-size: 15px;
   line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.resume-hero .profile-row strong {
+  font-size: clamp(15px, 1.15vw, 17px);
+  line-height: 1.5;
+}
+
+.resume-section-head {
+  align-items: start;
+  margin-bottom: 18px;
+}
+
+.resume-stack-panel {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+  margin-bottom: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  background: #fff;
+}
+
+.resume-stack-panel strong {
+  color: #344054;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.resume-stack-panel .tag-row {
+  gap: 9px;
 }
 
 .split-section {
@@ -979,7 +1045,7 @@ h3 {
 
 .project-card {
   display: grid;
-  grid-template-columns: minmax(0, 0.96fr) minmax(320px, 1.04fr);
+  grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.06fr);
   gap: 28px;
   align-items: start;
   border: 1px solid var(--line);
@@ -1010,6 +1076,7 @@ h3 {
 .project-main p {
   margin: 0;
   color: #475467;
+  overflow-wrap: anywhere;
 }
 
 .stat-row {
@@ -1030,6 +1097,7 @@ h3 {
   color: #1f2937;
   font-size: 13px;
   font-weight: 720;
+  overflow-wrap: anywhere;
 }
 
 .project-detail {
@@ -1052,6 +1120,7 @@ h3 {
 
 .project-detail li {
   color: #475467;
+  overflow-wrap: anywhere;
 }
 
 .education-list {
@@ -1250,6 +1319,11 @@ h3 {
 
   .resume-snapshot.compact {
     width: 100%;
+  }
+
+  .resume-stack-panel {
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 
   .project-detail {
