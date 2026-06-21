@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>简历 | Kv Ch'in</title>
-    <meta name="description" content="AI 芯片设计工程师个人主页，整理 NPU 架构、视频处理 SoC、低功耗设计、SystemC 建模与硬件流水实现相关经历和笔记。" />
+    <meta name="description" content="AI 推理芯片设计工程师个人主页，整理 NPU 架构、视频处理 SoC、低功耗设计、SystemC 建模与硬件流水实现相关经历和技术文章。" />
     <script>document.documentElement.classList.add("js");</script>
     <script>window.SITE_CONFIG={"basePath":"/website","contactApiBase":"","emailjs":{"serviceId":"QQ service_3vgpasm","templateId":"template_ukyfa7m","publicKey":"HY_NPIaIkw5fY4BKG","toEmail":"kvinkin@qq.com"}};</script>
     <link rel="stylesheet" href="/website/styles.css?v=20260621-emailjs" />
@@ -34,23 +34,23 @@
         <div class="shell page-hero-grid">
           <div>
             <span class="eyebrow">Resume</span>
-            <h1>AI 芯片设计工程师</h1>
-            <p>硕士毕业于西安电子科技大学微电子学院，目前聚焦 AI 推理芯片、视频处理 SoC 与低功耗数字设计。工作中覆盖系统级低功耗方案、UPF/EDA Flow、RTL 模块实现、架构建模与性能分析，并持续把复杂算法拆解为可落到硬件的数据流。</p>
+            <h1>AI 推理芯片 / NPU 设计工程师</h1>
+            <p>硕士毕业于西安电子科技大学微电子学院，目前聚焦 AI 推理芯片、NPU IP 与视频处理 SoC 的数字前端研发。工作中覆盖架构建模、微架构设计、RTL 模块实现、系统级低功耗方案、UPF/EDA Flow 与性能分析，擅长把 Attention、图像增强、视频处理等算法拆解为可实现、可验证、可跑满吞吐的数据流和硬件流水。</p>
           </div>
           <div class="resume-snapshot">
             <strong>Profile</strong>
             <div class="profile-list">
         <div class="profile-row">
-          <span>方向</span>
-          <strong>AI 推理芯片 / 视频处理 SoC / NPU IP</strong>
+          <span>定位</span>
+          <strong>AI 推理芯片 / NPU IP / 视频处理 SoC</strong>
         </div>
         <div class="profile-row">
           <span>经历</span>
-          <strong>两款视频处理 SoC 从 0 到 1 研发 + 自研 NPU IP</strong>
+          <strong>两款视频处理 SoC 从 0 到 1 研发，当前参与自研 NPU IP</strong>
         </div>
         <div class="profile-row">
-          <span>强项</span>
-          <strong>低功耗闭环、参数化 RTL、SystemC 周期级建模</strong>
+          <span>能力</span>
+          <strong>架构建模、RTL 实现、低功耗闭环、硬件流水优化</strong>
         </div></div>
           </div>
         </div>
@@ -65,11 +65,11 @@
             </div>
             <div class="resume-snapshot compact">
               <strong>Current Stack</strong>
-              <div class="tag-row"><span class="tag">数字 IC 设计</span><span class="tag">NPU / AI 推理芯片</span><span class="tag">视频处理 SoC</span><span class="tag">低功耗设计 / UPF</span><span class="tag">RTL 设计</span><span class="tag">SystemC 建模</span><span class="tag">FlashAttention</span><span class="tag">Online Softmax</span></div>
+              <div class="tag-row"><span class="tag">数字 IC 设计</span><span class="tag">NPU / AI 推理芯片</span><span class="tag">视频处理 SoC</span><span class="tag">低功耗设计 / UPF</span><span class="tag">RTL / 微架构设计</span><span class="tag">SystemC bit/cycle 建模</span><span class="tag">硬件流水设计</span><span class="tag">FlashAttention</span><span class="tag">Online Softmax</span></div>
             </div>
           </div>
           <div class="feature-grid">
-            <article class="card card-pad"><h3>低功耗设计闭环</h3><p>主导系统级低功耗方案与 UPF 规范，打通 DC、CLP/VCLP、Formality、前后仿与功耗统计流程，形成可复用的设计和验证方法。</p></article><article class="card card-pad"><h3>RTL 模块设计</h3><p>独立承担图像加速器调度子系统、Debug 与边界扫描相关模块开发，偏好参数化、可移植、易验证的模块组织方式。</p></article><article class="card card-pad"><h3>NPU 架构建模</h3><p>参与自研 NPU IP 架构研发，开展 SystemC bit-accurate / cycle-accurate 建模，把算子特性、流水结构和硬件资源约束放在一起评估。</p></article>
+            <article class="card card-pad"><h3>算法到硬件数据流</h3><p>关注算法递推关系、访存模式、片上缓存和流水反馈路径之间的约束，能把 Attention、激活函数、图像增强等计算拆成适合 NPU 落地的硬件结构。</p></article><article class="card card-pad"><h3>微架构与 RTL 实现</h3><p>独立承担图像加速器调度子系统、Debug 与边界扫描相关模块开发，习惯从接口协议、状态机、参数化复用、时序收敛和可验证性一起考虑实现方案。</p></article><article class="card card-pad"><h3>低功耗与工程闭环</h3><p>主导系统级低功耗方案与 UPF 规范，打通 DC、CLP/VCLP、Formality、前后仿与功耗统计流程，沉淀可复用的设计、验证和 sign-off 方法。</p></article>
           </div>
         </div>
       </section>
@@ -85,12 +85,12 @@
     <div class="project-main">
       <div class="project-kicker">2026 - 至今 · 架构建模 / 微架构设计 / RTL 实现</div>
       <h3>自研 NPU IP</h3>
-      <p>面向智能终端与边缘计算场景，参与自研 NPU IP 架构研发，支持目标检测、语义分割、图像增强、多模态感知及轻量化大模型推理等 AI 任务。</p>
+      <p>面向智能终端与边缘计算场景，参与自研 NPU IP 架构研发，围绕计算、访存、片上存储和控制调度协同评估性能与实现成本，支持目标检测、语义分割、图像增强、多模态感知及轻量化大模型推理等 AI 任务。</p>
       <div class="stat-row"><span class="stat-pill">INT8/FP8 峰值 3.2 TOPS @ 800MHz</span><span class="stat-pill">FP16/BF16 峰值 1.6 TOPS @ 800MHz</span><span class="stat-pill">2K 8bit MAC / 1K 16bit MAC</span><span class="stat-pill">256KB-1MB 可配置片上共享存储</span><span class="stat-pill">最高 128B/Cycle DDR 访问带宽</span><span class="stat-pill">最大 8 维数据搬移</span></div>
     </div>
     <div class="project-detail">
       <h4>我的工作</h4>
-      <ul><li>参与 RISC-V 控制核与专用 AI 计算核心协同的异构架构设计，兼顾通用调度、长尾算子处理与高能效推理。</li><li>负责向量引擎激活函数处理单元的 SystemC 周期级建模与微架构评估，覆盖 exp、reciprocal、relu、gelu、sigmoid、tanh、log、swish、softplus 等函数。</li><li>开展 bit-accurate / cycle-accurate 建模工作，评估流水深度、数据格式、精度误差与 RTL 实现代价。</li><li>设计用于加速 FlashAttention online softmax 部分和更新逻辑的标量计算模块，支撑 Attention 类算子的硬件优化。</li></ul>
+      <ul><li>参与 RISC-V 控制核与专用 AI 计算核心协同的异构架构设计，梳理通用调度、长尾算子处理与专用加速路径之间的分工。</li><li>负责向量引擎激活函数处理单元的 SystemC 周期级建模与微架构评估，覆盖 exp、reciprocal、relu、gelu、sigmoid、tanh、log、swish、softplus 等函数。</li><li>开展 bit-accurate / cycle-accurate 建模，评估流水深度、数据格式、精度误差与 RTL 资源代价。</li><li>针对 FlashAttention / Online Softmax 的递推依赖，设计标量计算模块与更新路径，支撑 Attention 类算子的高吞吐硬件实现探索。</li></ul>
     </div>
   </article>
 
@@ -98,12 +98,12 @@
     <div class="project-main">
       <div class="project-kicker">2025 - 2026 · 参数化 RTL 模块开发 / 低功耗设计 / Debug 支撑</div>
       <h3>视觉增强 AI 视频处理器</h3>
-      <p>面向低照度可见光增强、红外视频增强、异源图像融合及边缘 AI 视频处理场景，参与视觉增强 AI 视频处理器研发，覆盖图像采集、增强、融合、AI 推理、显示和编码链路。</p>
+      <p>面向低照度可见光增强、红外视频增强、异源图像融合及边缘 AI 视频处理场景，参与视觉增强 AI 视频处理器研发，覆盖图像采集、增强、融合、AI 推理、显示与编码链路。</p>
       <div class="stat-row"><span class="stat-pill">双核 NPU，INT8 算力 6 TOPS</span><span class="stat-pill">ISP 支持 2K@60fps Bayer RAW</span><span class="stat-pill">红外增强支持 1280x1024@100fps / 16bit</span><span class="stat-pill">图形与编码链路最高支持 4K@30fps</span><span class="stat-pill">支持可见光与红外双路并行处理</span></div>
     </div>
     <div class="project-detail">
       <h4>我的工作</h4>
-      <ul><li>独立负责多个图像加速器中的 6 个调度子系统开发，输出调研报告、设计方案、详细设计文档与 RTL 代码。</li><li>基于参数化架构实现高可移植设计，支持通过参数配置适配不同处理场景和后续项目复用。</li><li>设计细粒度时钟关断和动态缓存切分机制，提升缓存利用率并降低低负载场景功耗。</li><li>参与系统级低功耗策略、模块低功耗设计规范、UPF 与低功耗 EDA Flow，推动团队低功耗设计能力沉淀。</li></ul>
+      <ul><li>独立负责多个图像加速器中的 6 个调度子系统开发，完成调研报告、设计方案、详细设计文档与 RTL 代码交付。</li><li>将调度逻辑组织为参数化、可复用结构，支持通过参数配置适配不同处理场景和后续项目复用。</li><li>设计细粒度时钟关断和动态缓存切分机制，提升缓存利用率并降低低负载场景功耗。</li><li>参与系统级低功耗策略、模块低功耗设计规范、UPF 与低功耗 EDA Flow，推动低功耗设计方法在项目中沉淀复用。</li></ul>
     </div>
   </article>
 
@@ -116,7 +116,7 @@
     </div>
     <div class="project-detail">
       <h4>我的工作</h4>
-      <ul><li>主导整片系统级低功耗设计方案、模块级至顶层 UPF 规范和低功耗验证闭环。</li><li>建立基于 UPF 的低功耗 EDA Flow，打通 DC、CLP/VCLP、Formality、低功耗前仿/后仿等关键环节。</li><li>提出规则检查、形式化等价与低功耗仿真的三重验证策略，提高低功耗设计质量和 sign-off 可控性。</li><li>开发 log 检测、信息抓取、时序检查和低功耗流程提速脚本，降低重复劳动并将部分流程耗时压缩 90% 以上。</li></ul>
+      <ul><li>主导整片系统级低功耗设计方案、模块级至顶层 UPF 规范和低功耗验证闭环。</li><li>建立基于 UPF 的低功耗 EDA Flow，打通 DC、CLP/VCLP、Formality、低功耗前仿/后仿等关键环节。</li><li>设计规则检查、形式化等价与低功耗仿真的三重验证策略，提高低功耗设计质量和 sign-off 可控性。</li><li>开发 log 检测、信息抓取、时序检查和低功耗流程提速脚本，减少重复劳动并将部分流程耗时压缩 90% 以上。</li></ul>
     </div>
   </article>
 </div>
@@ -127,11 +127,11 @@
         <div class="shell resume-grid">
           <div class="card card-pad">
             <h3>技术关键词</h3>
-            <div class="tag-row"><span class="tag">数字 IC 设计</span><span class="tag">NPU / AI 推理芯片</span><span class="tag">视频处理 SoC</span><span class="tag">低功耗设计 / UPF</span><span class="tag">RTL 设计</span><span class="tag">SystemC 建模</span><span class="tag">FlashAttention</span><span class="tag">Online Softmax</span></div>
+            <div class="tag-row"><span class="tag">数字 IC 设计</span><span class="tag">NPU / AI 推理芯片</span><span class="tag">视频处理 SoC</span><span class="tag">低功耗设计 / UPF</span><span class="tag">RTL / 微架构设计</span><span class="tag">SystemC bit/cycle 建模</span><span class="tag">硬件流水设计</span><span class="tag">FlashAttention</span><span class="tag">Online Softmax</span></div>
           </div>
           <div class="card card-pad">
             <div class="timeline">
-              <div class="timeline-item"><time>2023.07 - 至今</time><h3>AI 芯片设计工程师</h3><p>参与视频处理 SoC 与自研 NPU IP 研发，工作覆盖低功耗设计、RTL 实现、EDA Flow、自动化脚本、架构建模与性能分析。</p></div><div class="timeline-item"><time>2020.09 - 2023.07</time><h3>西安电子科技大学 · 硕士</h3><p>微电子学与固体电子学方向，成绩排名 TOP1%，获研究生国家奖学金；以学生一作身份发表 SCI 论文与授权专利。</p></div><div class="timeline-item"><time>2016.09 - 2020.06</time><h3>西安电子科技大学 · 本科</h3><p>微电子科学与工程专业，系统学习半导体器件、数字集成电路、模拟电路与芯片设计基础。</p></div>
+              <div class="timeline-item"><time>2023.07 - 至今</time><h3>AI 芯片设计工程师</h3><p>参与视频处理 SoC 与自研 NPU IP 研发，工作覆盖低功耗设计、RTL 实现、EDA Flow、自动化脚本、SystemC 建模与微架构性能分析。</p></div><div class="timeline-item"><time>2020.09 - 2023.07</time><h3>西安电子科技大学 · 硕士</h3><p>微电子学与固体电子学方向，成绩排名 TOP1%，获研究生国家奖学金；以学生第一作者身份发表 SCI 论文并获得授权专利。</p></div><div class="timeline-item"><time>2016.09 - 2020.06</time><h3>西安电子科技大学 · 本科</h3><p>微电子科学与工程专业，系统学习半导体器件、数字集成电路、模拟电路与芯片设计基础。</p></div>
             </div>
           </div>
         </div>
