@@ -124,7 +124,9 @@ if (articleList) {
     if (!button) return;
     activeCategory = button.dataset.category || "all";
     categoryFilter.querySelectorAll(".category-button").forEach((item) => {
-      item.classList.toggle("active", item === button);
+      const isActive = item === button;
+      item.classList.toggle("active", isActive);
+      item.setAttribute("aria-pressed", String(isActive));
     });
     filterArticles();
   });
@@ -134,7 +136,9 @@ if (articleList) {
     if (!button) return;
     activeTag = button.dataset.tag || "all";
     tagFilter.querySelectorAll(".tag-button").forEach((item) => {
-      item.classList.toggle("active", item === button);
+      const isActive = item === button;
+      item.classList.toggle("active", isActive);
+      item.setAttribute("aria-pressed", String(isActive));
     });
     filterArticles();
   });
