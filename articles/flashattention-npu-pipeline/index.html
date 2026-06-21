@@ -35,6 +35,7 @@
           <h1>如何在NPU设计中加速 FlashAttention 计算</h1>
           <p class="post-lede">聚焦 Online Softmax 的 loop-carried dependency，用 lookahead 展开把标量递推链路做成高吞吐全流水结构。</p>
           <div class="article-meta"><span>NPU设计</span><span>NPU</span><span>Pipeline</span><span>Lookahead</span><span>2026-06-20</span></div>
+          
           <figure class="post-cover">
             <img src="/website/assets/pipeline_cover.png" alt="FlashAttention pipeline cover" />
           </figure>
@@ -59,7 +60,7 @@
 <p>遍历所有 key/value block：</p>
 <div class="math-block">\[K_j,V_j\in \mathbb{R}^{B_c\times d}\]</div>
 <p>当前 score block 为： <span class="math-inline">\(S_i^{(j)}=Q_iK_j^T\)</span></p>
-<figure class="post-cover"><img src="/website/assets/fa3_flow_white.jpg" alt="FlashAttention 分块计算示意图" loading="lazy" /><figcaption>FlashAttention 分块计算示意图</figcaption></figure>
+<figure class="post-cover"><img src="/website/assets/flashattention_j2_steps.jpg" alt="FlashAttention 分块计算示意图" loading="lazy" /><figcaption>FlashAttention 分块计算示意图</figcaption></figure>
 <p>FlashAttention 分块计算示意图</p>
 <p>从芯片实现角度，可以抽象为若干步骤：</p>
 <p>Tensor--矩阵运算单元；Vect.--向量运算单元；Acvt.--激活函数运算单元；Scalar--标量运算单元；</p>

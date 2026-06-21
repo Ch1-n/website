@@ -35,15 +35,13 @@
           <h1>AI推理芯片/NPU设计中如何实现高效的FlashAttention</h1>
           <p class="post-lede">从标准 Attention 和 safe softmax 出发，解释 FlashAttention 为什么可以分块算出精确 attention，并指出 FA3 伪代码中的缩放项问题。</p>
           <div class="article-meta"><span>NPU设计</span><span>FlashAttention</span><span>Online Softmax</span><span>NPU</span><span>2026-06-20</span></div>
-          <figure class="post-cover">
-            <img src="/website/assets/fa3_algorithm_white.jpg" alt="FlashAttention-3 Algorithm" />
-          </figure>
+          
           <p>最近在做自研 NPU 的架构及建模设计，就免不了 FlashAttention 的近似 asic 流水化来提高计算效率。本篇作为专栏首篇，先大致介绍一下整体思路。</p>
 <h2 id="0-开篇">0. 开篇</h2>
 <p>看 FlashAttention 的时候，很多人第一反应是：它是不是用了某种近似 attention？</p>
 <p>答案显然是否定的。FlashAttention 的结果仍然是精确 attention。它真正厉害的地方在于：<strong>不显式保存完整的</strong><span class="math-inline">\(N \times N\)</span><strong>attention matrix，也能在分块计算中得到和标准 softmax 等价的结果。</strong></p>
 <p>这里的关键就是 Online Softmax，这篇文章先讨论一下整个计算流程，后续文章再具体探讨 设计 NPU 时怎么把它跑满。顺便也解释一下 FlashAttention-3 早期算法伪代码截图里第 21 行的一个容易误导的地方。</p>
-<figure class="post-cover"><img src="/website/assets/fa3_algorithm_white.jpg" alt="FlashAttention-3 Algorithm 1 截图，注意第 21 行的缩放项" loading="lazy" /><figcaption>FlashAttention-3 Algorithm 1 截图，注意第 21 行的缩放项</figcaption></figure>
+<figure class="post-cover"><img src="/website/assets/fa3_algorithm_line21.jpg" alt="FlashAttention-3 Algorithm 1 截图，注意第 21 行的缩放项" loading="lazy" /><figcaption>FlashAttention-3 Algorithm 1 截图，注意第 21 行的缩放项</figcaption></figure>
 <p>这个错误困扰了我几个小时，和自己推导结果不一致，翻遍了 arxiv 和 <a href="https://zhida.zhihu.com/search?content_id=277296166&amp;content_type=Article&amp;match_order=1&amp;q=tri+dao&amp;zhida_source=entity" target="_blank" rel="noopener noreferrer">tri dao</a> 的网站发现 FA2-3 均出现该错误。最终在 <a href="https://www.zhihu.com/people/lemonround" target="_blank" rel="noopener noreferrer">猛猿</a> 大佬这里找到了答案，证明确实是作者笔误或是其他原因：</p>
 <blockquote><strong>可能在有些朋友下载的 V2 论文中，第十行这里 O 前面的因子项是</strong><span class="math-inline">\(diag(...)^{-1}\)</span><strong>，这个公式应该是错误的</strong>（大家动手推一下就可知，初次看到时让我困扰了很久）。在作者个人主页的<a href="https://tridao.me/publications/flash2/flash2.pdf" target="_blank" rel="noopener noreferrer">论文链接</a>中，这个 typo 已经被修正。<a href="https://zhuanlan.zhihu.com/p/691067658" target="_blank" rel="noopener noreferrer">图解大模型计算加速系列：Flash Attention V2，从原理到并行计算</a></blockquote>
 <h2 id="1-标准-attention-公式">1. 标准 Attention 公式</h2>
@@ -61,7 +59,7 @@
 <p>其中 <span class="math-inline">\(z_m\)</span> 为 <span class="math-inline">\(z_i\)</span> 中的最大值，这里的 <span class="math-inline">\(z_i\)</span> 就是 <span class="math-inline">\(score\)</span> 。这个操作不改变 softmax 结果，因为分子分母同时乘了同一个系数。按照常规思路，我们就需要遍历所有的 <span class="math-inline">\(z_i\)</span> 找到最大值。普通 attention 如果直接生成完整的 <span class="math-inline">\(S\)</span> 和 <span class="math-inline">\(P\)</span>，中间矩阵都是 <span class="math-inline">\(N \times N\)</span>。序列长度一大，显存占用和 HBM 读写都会非常重。</p>
 <p>FlashAttention 的思路是：<strong>把</strong><span class="math-inline">\(Q/K/V\)</span><strong>分块搬到片上 SRAM/<a href="https://zhida.zhihu.com/search?content_id=277296166&amp;content_type=Article&amp;match_order=1&amp;q=SMEM&amp;zhida_source=entity" target="_blank" rel="noopener noreferrer">SMEM</a>，边算边更新 softmax 的中间统计量，不把完整</strong><span class="math-inline">\(S/P\)</span><strong>写回片外内存。</strong>FlashAttention 的 Online Softmax 就是在分块过程中动态维护这个 局部最大值。</p>
 <h2 id="2-flashattention3-的算法及工程计算步骤">2. FlashAttention3 的算法及工程计算步骤</h2>
-<figure class="post-cover"><img src="/website/assets/fa3_algorithm_white.jpg" alt="FlashAttention-3 Algorithm 1 截图，注意第 21 行的缩放项" loading="lazy" /><figcaption>FlashAttention-3 Algorithm 1 截图，注意第 21 行的缩放项</figcaption></figure>
+<figure class="post-cover"><img src="/website/assets/fa3_algorithm_full.jpg" alt="FlashAttention-3 Algorithm 1 截图，注意第 21 行的缩放项" loading="lazy" /><figcaption>FlashAttention-3 Algorithm 1 截图，注意第 21 行的缩放项</figcaption></figure>
 <p>这里补充更工程上的计算过程：</p>
 <div class="math-block">\[\text{for } i = 1 \text{ to } N \text{ do}\]</div>
 <div class="math-block">\[\begin{aligned} x_i &amp;\leftarrow Q[k,:] K^\top[:,i] \\ \ \ m_i &amp;\leftarrow \max(m_{i-1},\; x_i) \\ d_i' &amp;\leftarrow d_{i-1}' \,e^{m_{i-1}-m_i} + e^{x_i - m_i} \\ \tilde{o}_i' &amp;= \tilde{o}_{i-1}' \,e^{m_{i-1}-m_i} + e^{x_i - m_i} V[i,:]  \end{aligned}\]</div>
@@ -72,8 +70,8 @@
 <p>FA3 的算法是针对 GPU 的，那么在自研 AI 芯片/NPU 中，有没有办法更高效的完成 FlashAttention 计算呢？</p>
 <p>答案肯定是有的，那就是把 online softmax 粗指令拆解为各种 矩阵乘 规约 EXP RECIP 等指令，加以合理的流水线编排，实现 FlashAttention 的全流水计算。</p>
 <p>结合上述算法和工程计算步骤，这里给出适配 AI 推理芯片/NPU 的简要计算过程，可结合下图进行理解：</p>
-<figure class="post-cover"><img src="/website/assets/fa3_flow_white.jpg" alt="当j为2时的FlashAttention计算步骤" loading="lazy" /><figcaption>当j为2时的FlashAttention计算步骤</figcaption></figure>
-<figure class="post-cover"><img src="/website/assets/flashattention_flow.png" alt="简化版流程" loading="lazy" /><figcaption>简化版流程</figcaption></figure>
+<figure class="post-cover"><img src="/website/assets/flashattention_j2_steps.jpg" alt="当j为2时的FlashAttention计算步骤" loading="lazy" /><figcaption>当j为2时的FlashAttention计算步骤</figcaption></figure>
+<figure class="post-cover"><img src="/website/assets/flashattention_simplified_steps.jpg" alt="简化版流程" loading="lazy" /><figcaption>简化版流程</figcaption></figure>
 <p>补充说明：</p>
 <ol>
 <li>在硬件设计时，规约 max，规约 add 的并行度取决于 <a href="https://zhida.zhihu.com/search?content_id=277296166&amp;content_type=Article&amp;match_order=1&amp;q=vector+engine&amp;zhida_source=entity" target="_blank" rel="noopener noreferrer">vector engine</a>，如果并行度小于 Bc，则需要将 j 小块再拆分为与并行度粒度相配套的更小块。假设 vector 是 32 lane 的，而分的小块尺寸 Bc 是 256，那么 vector 一次规约可以算 64 个数据，也就是需要将 Bc 拆分为 4 个 64 的更小块。那么一个 j 小块的规约计算就需要 4 次才能完成，做成全流水的差不多 6+3 拍完成。</li>
