@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SoC 芯片低功耗设计全流程 | Ch'in</title>
+    <meta name="description" content="从 Power 与 Energy 的目标区分出发，梳理动态功耗、静态功耗、系统架构、模块 RTL、Memory、物理实现和 Golden UPF Flow 的低功耗设计路径。" />
+    <script>document.documentElement.classList.add("js");</script>
+    <script>window.SITE_CONFIG={"basePath":"/website","contactApiBase":"","emailjs":{"serviceId":"QQ service_3vgpasm","templateId":"template_ukyfa7m","publicKey":"HY_NPIaIkw5fY4BKG","toEmail":"kvinkin@qq.com"}};</script>
+    <link rel="stylesheet" href="/website/styles.css?v=20260621-copy-fields" />
+    <script>window.MathJax={tex:{inlineMath:[["\\(","\\)"]],displayMath:[["\\[","\\]"]]},svg:{fontCache:"global"}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  </head>
+  <body>
+    
+  <nav class="nav">
+    <div class="shell nav-inner">
+      <a class="brand" href="/website/" aria-label="首页">
+        <span class="brand-mark">K</span>
+        <span>Ch'in</span>
+      </a>
+      <div class="nav-links">
+        <a class="" href="/website/">首页</a>
+        <a class="" href="/website/resume/">简历</a>
+        <a class="active" href="/website/articles/">文章</a>
+        <a href="/website/#contact">联系</a>
+        <a class="nav-cta" href="/website/articles/soc-low-power-design-flow/">最新文章</a>
+      </div>
+    </div>
+  </nav>
+
+    
+      <main class="shell article-layout">
+        <article class="post">
+          <a class="back-link" href="/website/articles/">← 返回文章列表</a>
+          <h1>SoC 芯片低功耗设计全流程</h1>
+          <p class="post-lede">从 Power 与 Energy 的目标区分出发，梳理动态功耗、静态功耗、系统架构、模块 RTL、Memory、物理实现和 Golden UPF Flow 的低功耗设计路径。</p>
+          <div class="article-meta"><span>低功耗设计</span><span>SoC</span><span>低功耗</span><span>UPF</span><span>2026-06-27</span></div>
+          
+          <figure class="post-cover">
+            <img src="/website/assets/soc-low-power-cover.png" alt="SoC 芯片低功耗设计全流程封面" />
+          </figure>
+          <p>前段时间做了一些简单的低功耗设计，总结了点经验，这里做一个简单的记录。</p>
+<h2 id="1-功耗概述">1. 功耗概述</h2>
+<p>本小节主要讲述一下优化目标、功耗组成、主要占比等内容。</p>
+<p>做低功耗设计之前，第一步通常不是敲定低功耗策略，而是结合应用场景确认优化侧重点。</p>
+<p>功耗、能量、平均功耗、峰值功耗、动态功耗、漏电功耗等，当然并不是只针对其中一项进行优化，而且多路齐下，分个轻重缓急以最大化收益。</p>
+<h3 id="1-1-power-or-energy">1.1  Power or Energy？</h3>
+<p>我们通常所说的低功耗大多指降低芯片功率，但这只是优化目标之一。功率在时间维度上的累计称为能量，如何降低芯片完成一项任务所消耗的总能量，也同等甚至更加重要。</p>
+<figure class="post-cover"><img src="/website/assets/soc-low-power-01-targets.svg" alt="图 1：低功耗目标要先区分 Power 与 Energy" loading="lazy" /><figcaption>图 1：低功耗目标要先区分 Power 与 Energy</figcaption></figure>
+<p>Power 是单位时间消耗的能量，Energy 是总能量：</p>
+<pre><code>Energy = Power * worktime</code></pre>
+<p>很多设计讨论里容易把“低功耗”和“低能耗”混在一起。二者相关，但不完全等价。</p>
+<p>如果一个方案功率更低，但运行时间被拉长很多，总能量未必更低。反过来，一个方案峰值功率更高，但能更快完成任务并进入休眠，总能量可能更优。</p>
+<p>因此：</p>
+<ul>
+<li>对于电池驱动、移动终端、IoT 等场景，更关心 Energy，即一次任务需消耗多少电。</li>
+<li>对于持续供电、需trade off 延迟、漏电、性能、封装散热约束等场景，更关心 Power。</li>
+</ul>
+<p>举个很简单的例子，对于手机soc，我们的关注侧重点是Energy。但对于桌面级GPU，我们更关心其Power。</p>
+<h3 id="1-2-average-or-peak">1.2 Average or Peak</h3>
+<p>降低平均功耗，本质是减少系统整体能耗。</p>
+<p>而峰值功耗过高会引发多重工程风险：</p>
+<ul>
+<li>散热压力增大，性能释放不稳定。</li>
+<li>后端APR阶段电源网络IR不收敛。</li>
+<li>容易出现可靠性问题，降低使用寿命等。</li>
+</ul>
+<h3 id="1-3-dynamic-or-static">1.3 Dynamic or Static</h3>
+<ul>
+<li>对持续高负载运行的模块，动态功耗是大头。</li>
+<li>对长期 standby 的模块，静态功耗更值得关注。</li>
+</ul>
+<h3 id="1-4-soc-功耗组成">1.4 SoC 功耗组成</h3>
+<figure class="post-cover"><img src="/website/assets/soc-low-power-02-composition.svg" alt="图 2：SoC 功耗构成与优化方向" loading="lazy" /><figcaption>图 2：SoC 功耗构成与优化方向</figcaption></figure>
+<p>数字芯片功耗通常可以粗略分成两类：动态功耗和静态功耗。</p>
+<h4 id="1-4-1-动态功耗-翻转产生的功耗">1.4.1 动态功耗：翻转产生的功耗</h4>
+<p>动态功耗主要来自节点翻转、电容充放电、短路电流等。常见形式可以理解为：</p>
+<pre><code>Pdyn ≈ (Ceff * Vdd^2 * f) + (t * Vdd * Ipeak * f)</code></pre>
+<p>这里不对公式做详细说明，如有疑问可查阅其他帖子。</p>
+<p>我们关注的重点是，动态功耗与电压平方、频率及电容成相关。</p>
+<p>所有的降功耗路子追根到底都是从公式上下手，以上式为例：</p>
+<ul>
+<li>降电压：multi-voltage、DVS（Dynamic Voltage Scaling）、DVFS（Dynamic Voltage and Frequency Scaling）、AVFS（Adaptive Voltage and Frequency Scaling）。</li>
+<li>降频率：DFS（Dynamic Frequency Scaling）、DVFS、AVFS。</li>
+<li>降翻转：clock gating、data gating、operand isolation、减少无效数据传播等。</li>
+<li>降电容：长沟道管子 HVT器件 LP工艺。</li>
+</ul>
+<h4 id="1-4-2-静态功耗-漏电产生的功耗">1.4.2 静态功耗：漏电产生的功耗</h4>
+<p>静态功耗主要来自器件漏电，包括 sub-threshold leakage、gate leakage、junction leakage 等。随着工艺演进，漏电越来越不能忽视。</p>
+<pre><code>Pleak ≈ （Isub + Igate + Ijunc）* Vdd</code></pre>
+<p>常见降低静态功耗的手段包括：</p>
+<ul>
+<li>使用 high-Vt 器件。</li>
+<li>使用 long-channel 器件。</li>
+<li>well bias / body bias。</li>
+<li>使用 high-K 介质工艺.</li>
+<li>power gating。</li>
+</ul>
+<h3 id="1-5-功耗中的主要占比">1.5 功耗中的主要占比</h3>
+<p>在 28/14/12/7/5nm 等 这类成熟工艺上，动态功耗仍然是主要部分，只不过静态功耗的占比在逐渐递增。</p>
+<p>而动态功耗中，时钟树相关功耗会占到很大一部分，通常在15%-40%。所以几乎所有的soc都会做clock gating，即便不手动做，综合工具也会自动插入。</p>
+<h2 id="2-全链路低功耗策略">2. 全链路低功耗策略</h2>
+<h3 id="2-1-设计层次与功耗收益">2.1 设计层次与功耗收益</h3>
+<figure class="post-cover"><img src="/website/assets/soc-low-power-03-stack.svg" alt="图 3：低功耗优化层次与收益空间" loading="lazy" /><figcaption>图 3：低功耗优化层次与收益空间</figcaption></figure>
+<p>上层决定“要不要做、怎么做、做多少”；</p>
+<p>下层则是在既定功能和架构下做局部优化。</p>
+<p>例如：</p>
+<ul>
+<li>算法减少一次大规模访存，可能比后端优化几百个门更有价值。</li>
+<li>架构上减少跨模块搬运，可能比后面做 data gating 更彻底。</li>
+<li>系统调度让模块集中工作后快速休眠，可能比一直低频运行更省能量。</li>
+<li>Memory 访问模式优化，可能比单纯换一个低功耗 SRAM compiler 选项更有效。</li>
+</ul>
+<p>所以低功耗不是硬件一个阶段的任务，而应该从需求和架构评审阶段就开始着手。不过本篇文章主要围绕硬件低功耗手段进行展开。</p>
+<h3 id="2-2-系统架构层低功耗策略">2.2 系统架构层低功耗策略</h3>
+<p>系统层低功耗的核心问题是：哪些模块在什么场景下需要工作，哪些可以降频、降压、关时钟，甚至直接断电？</p>
+<h4 id="2-2-1-power-domain-multi-voltage">2.2.1 Power domain - Multi Voltage</h4>
+<p>电源域可以理解为具有同一种电源行为的一组集合。如可以将某个模块划为一个单独的电源域，或将若干子模块组成的一个子系统划为一个电源域。有了电源域，就可以执行相应的低功耗策略如电源关断和多电压设计。</p>
+<p>Power gating 对静态功耗的收益很大，适合阶段性工作的大模块，引入 power gating 后，需要同步考虑：</p>
+<ul>
+<li>电源域划分是否合理。</li>
+<li>关断模块输出是否需要 isolation。</li>
+<li>关断前状态是否需要 retention。</li>
+<li>唤醒时序和状态恢复是否可控。</li>
+<li>debug/test mode 下是否允许关断。</li>
+<li>UPF/CPF、仿真、形式验证和后端实现是否完整支持。</li>
+</ul>
+<p>如果某个模块只是短时间空闲，频繁 power on/off 反而可能得不偿失。Power gating 更适合“空闲时间足够长、状态恢复可控、关断收益明显”的大模块。对于一些小模块，仅关闭时钟即可。</p>
+<p>动态功耗与电压平方相关，所以 multi-voltage 很有吸引力。比如非关键模块使用较低电压，时序紧张或性能敏感模块使用较高电压。但 multi-voltage 会引入新的工程问题：</p>
+<ul>
+<li>不同 voltage island 之间需要 level shifter。</li>
+<li>如果还叠加 power gating，可能需要 isolation + level shifter 的组合单元。</li>
+<li>跨电压域路径的时序约束更复杂。</li>
+<li>需要完整的 low power flow 支撑。</li>
+<li>后端实现和验证复杂度明显上升。</li>
+</ul>
+<h4 id="2-2-2-clock-domain-dfs">2.2.2 Clock domain - DFS</h4>
+<p>不同模块时钟要求不尽相同，合理分配时钟方案可降低非常客观的动态功耗。如为逻辑简单的模块分配较低频时钟，为高性能计算模块分配较高，或多档时钟。不同时钟域信号的交互需做好跨异步处理。</p>
+<p>DFS是在时钟频率上进行动态调整，从而降低功耗的手段。如果动态调压风险太高，可以先做动态调频。动态频率调整不改变电压，收益比 DVFS 小，但工程风险也更低。</p>
+<p>适合的做法是：</p>
+<ul>
+<li>给关键模块设计多个频率档位。</li>
+<li>按业务场景切换，比如高性能、普通、低负载模式。</li>
+<li>频率切换前等待当前事务完成。</li>
+<li>配合 thermal monitor 或 system monitor 做降频保护。</li>
+</ul>
+<p>对于中等风险项目，DFS 往往比完整 DVFS 更容易落地。</p>
+<h4 id="2-2-3-dvfs-avfs-电压频率综合优化手段">2.2.3 DVFS/AVFS：电压频率综合优化手段</h4>
+<p>这里以DVFS为例进行说明。DVFS 的思想是让模块根据负载切换电压和频率。典型场景包括 CPU、NPU等有明显性能档位的模块。</p>
+<p>例如视频场景中，不同分辨率和帧率对应不同算力需求：</p>
+<ul>
+<li>4K60 需要高频。</li>
+<li>4K30 可以降一档。</li>
+<li>1080P30 可能只需要更低频率。</li>
+</ul>
+<p>DVFS 做得好，可以在“够用”的前提下减少多余性能。但实现上需要：</p>
+<ul>
+<li>性能监测或负载预测。</li>
+<li>PMU/LDO/DCDC 配合。</li>
+<li>频率切换前后的保护时序。</li>
+<li>当前任务完成后的安全切换机制。</li>
+<li>软件调度策略。</li>
+</ul>
+<p>DVFS 收益高，但验证、时序和系统调度成本也高，适合对功耗非常敏感且项目具备经验积累的场景。AVFS（Adaptive Voltage and Frequency Scaling）原理类似，通过自适应调整电压和频率来优化功耗。</p>
+<h3 id="2-2-处理器层低功耗策略">2.2 处理器层低功耗策略</h3>
+<p>处理器层的低功耗不只是硬件问题，也和软件调度强相关。</p>
+<p>常见手段包括：</p>
+<ul>
+<li>sleep instruction。</li>
+<li>shallow sleep：关时钟，保留电源，唤醒快，主要省动态功耗。</li>
+<li>deep sleep：关时钟并关部分电源，省动态和静态功耗，但唤醒慢。</li>
+<li>retention register 或 SRAM 保留关键状态。</li>
+<li>软件保存上下文，唤醒后恢复。</li>
+<li>异构架构，例如大核/小核、CPU/GPU/NPU 分工。</li>
+<li>提高 Cache hit rate，减少外部存储访问。</li>
+</ul>
+<p>这里有一个工程判断：低功耗状态不是越深越好，而是要看 idle 时间能不能覆盖进入和退出低功耗状态的代价。如果只是短暂等待，关掉时钟可能就够了；如果长时间不用，才值得考虑  power gating。</p>
+<h3 id="2-3-模块层低功耗策略">2.3 模块层低功耗策略</h3>
+<p>即ic设计微架构范畴，其常见策略与soc系统层面基本一致，只不过规模更小。</p>
+<ul>
+<li>比较独立或大规模模块可划分为独立电源域/多级电源域进行管理，做关断 门控 多电压等。</li>
+<li>多级时钟门控策略，如模块层，子模块层，寄存器层等。</li>
+<li>微架构优化，数据通路不复位等。</li>
+</ul>
+<p>这里对时钟门控进行展开：Clock gating 是数字芯片低功耗里最常用的手段。它的基本思想很简单，即模块或寄存器不工作时，不要让时钟继续翻转。</p>
+<h4 id="2-3-1-为什么-clock-gating-很重要">2.3.1 为什么 clock gating 很重要？</h4>
+<p>时钟网络会驱动大量寄存器和 clock tree buffer，即使数据不变化，时钟仍然在翻转。因此在很多设计中，时钟功耗会占动态功耗的显著比例。如果能把 idle 模块的时钟关掉，收益往往很直接。</p>
+<h4 id="2-3-2-自动插入-icg-依赖-rtl-风格">2.3.2 自动插入 ICG：依赖 RTL 风格</h4>
+<p>综合工具可以根据 RTL 里的 enable 逻辑推断 clock gating，但前提是代码风格要友好。典型写法是寄存器只有在 valid 或 enable 为真时更新：</p>
+<pre><code>always @(posedge clk or negedge rst_n) begin
+  if (!rst_n)
+    q &lt;= '0;
+  else if (en)
+    q &lt;= d;
+end</code></pre>
+<p>如果代码里每个分支都让寄存器更新，工具就很难插入 ICG。比如：</p>
+<pre><code>always @(posedge clk or negedge rst_n) begin
+  if (!rst_n)
+    q &lt;= '0;
+  else if (en)
+    q &lt;= d;
+  else
+    q &lt;= other_value;
+end</code></pre>
+<p>这类代码看起来功能没问题，但从低功耗角度看，寄存器在大多数周期仍然可能被迫翻转。</p>
+<p>工程上常见检查项：</p>
+<ul>
+<li>enable 是否稳定，是否会引入毛刺。</li>
+<li>enable 逻辑是否太长，影响 gating 插入或时序。</li>
+<li>最小 bitwidth 是否合理，太小的寄存器强行 gating 可能收益不高。</li>
+<li>ICG 插入位置是在寄存器末端，还是更靠近上游 clock tree。</li>
+<li>clock gating 覆盖率是否达到目标，比如关键数据通路和大寄存器组覆盖充分。</li>
+<li>一般要求门控率在85%以上。</li>
+</ul>
+<h4 id="2-3-3-手动多级门控-适合模块级和模式级控制">2.3.3 手动多级门控：适合模块级和模式级控制</h4>
+<p>综合工具推断的 ICG 往往靠近寄存器端，能减少寄存器翻转，但上游 clock tree 仍可能在动。</p>
+<p>对于大模块、互斥工作模式、子模块层级明显的设计，可以在 RTL 或架构层手动插入更高层级的 clock gate。</p>
+<p>例如：</p>
+<ul>
+<li>子模块 idle 时关子模块 clock。</li>
+<li>多个工作模式互斥时，只打开当前模式需要的模块。</li>
+<li>Macro IP，如 memory、PLL 周边控制、硬化 IP，单独做 clock enable。</li>
+</ul>
+<p>这类设计收益更大，但也要特别注意：</p>
+<ul>
+<li>门控控制信号不要是复杂组合逻辑，避免毛刺。</li>
+<li>需要确认 clock gating cell 的时序和约束。</li>
+<li>避免把数据信号直接当控制信号造成循环或不可控路径。</li>
+<li>CDC/RDC 和 low power verification 要覆盖相关场景。</li>
+</ul>
+<h3 id="2-4-memory-层低功耗策略">2.4. Memory 层低功耗策略</h3>
+<p>大多 SoC 项目里，SRAM 的面积和功耗占比非常高，尤其AI芯片。</p>
+<p>因此 Memory 低功耗不能只靠 compiler 默认选项，而要从架构、生成、使用方式和访问模式一起优化。</p>
+<h4 id="2-4-1-使用角度-并非所有存储都要用-sram-rom">2.4.1 使用角度：并非所有存储都要用 SRAM/ROM</h4>
+<p>小容量存储未必适合使用SRAM，需对比不同实现的面积、功耗，最终敲定。</p>
+<ul>
+<li>SRAM/ROM实现。</li>
+<li>寄存器实现。</li>
+<li>case/组合逻辑实现等。</li>
+</ul>
+<h4 id="2-4-2-生成角度-不要过度拆分">2.4.2 生成角度：不要过度拆分</h4>
+<p>同样容量的 SRAM，拆分越多，外围电路、冗余边界、时钟、使能和后端布线成本可能越高。</p>
+<p>因此要权衡：</p>
+<ul>
+<li>拆分后是否真的能降低访问功耗。</li>
+<li>是否增加了面积。</li>
+<li>是否增加 APR 难度。</li>
+<li>是否引入更多 enable、address、data 的翻转。</li>
+<li>是否让时序变复杂。</li>
+</ul>
+<p>一般来说，拆分要服务于真实访问模式，而不是为了“看起来更灵活”。</p>
+<h4 id="2-4-3-功能角度-优先使用-memory-自带低功耗模式">2.4.3 功能角度：优先使用 Memory 自带低功耗模式</h4>
+<p>很多 SRAM macro 自带低功耗模式，例如：</p>
+<ul>
+<li>sleep mode。</li>
+<li>retention mode。</li>
+<li>shutdown / power down mode。</li>
+<li>quick nap。</li>
+<li>selective precharge。</li>
+<li>back bias。</li>
+<li>multi-Vt 选项。</li>
+</ul>
+<p>这些模式通常比外部硬凑逻辑更直接，但使用时要确认：</p>
+<ul>
+<li>低功耗模式下是否还能读写。</li>
+<li>内容是否保持。</li>
+<li>唤醒延迟是多少。</li>
+<li>控制信号时序要求是什么。</li>
+<li>是否允许降低供电电压。</li>
+<li>是否需要 isolation 或 retention。</li>
+</ul>
+<p>对于大块 AO 区域 SRAM，内部是否支持关断和 retention，需要在 memory compiler 和工艺库层面提前确认。</p>
+<h4 id="2-4-4-访问模式角度-合并访问-提高-burst-length">2.4.4 访问模式角度：合并访问、提高 burst length</h4>
+<p>SRAM 的功耗不仅和容量有关，也和访问方式有关。</p>
+<p>如果平均数据量不变，把频繁、零散的读写合并成更长 burst，通常可以减少平均动态功耗。因为每次访问都会带来外围电路、译码、字线、位线、enable 等活动，访问越碎，额外开销越明显。</p>
+<p>常用优化包括：</p>
+<ul>
+<li>grouping memory accesses。</li>
+<li>avoiding redundant activity on enable pins。</li>
+<li>提高 burst length。</li>
+<li>减少无效读写。</li>
+<li>对 SRAM 端口做 clock gating。</li>
+<li>在允许的情况下，用 multi-cycle 降低 SRAM 访问频率。</li>
+<li>让数据位宽尽量匹配真实使用宽度，避免读出大量无用 bit。</li>
+</ul>
+<p>Memory 低功耗最怕“功能已经做完，最后才发现访存模式很差”。这类问题后期很难救，最好在架构评审阶段就把数据流画清楚。</p>
+<h3 id="2-5-物理实现层低功耗策略">2.5. 物理实现层低功耗策略</h3>
+<p>到了综合、布局布线和工艺器件层，仍然有不少低功耗手段：</p>
+<ul>
+<li>low power 工艺库。</li>
+<li>high-Vt / low-Vt 混用。</li>
+<li>long-channel 器件。</li>
+<li>multi-bit cell。</li>
+<li>clock tree 优化。</li>
+<li>pin swap / cell merge / shorten。</li>
+<li>well bias。</li>
+<li>FD-SOI 或特殊低功耗工艺。</li>
+</ul>
+<p>这些手段很重要，但它们更像“把既定架构实现得更好”。如果系统架构本身高频搬数据、Memory 访问碎片化、模块 idle 也一直跑时钟，后端优化很难彻底扭转局面。</p>
+<p>此外还需考虑额外引入的工作量：</p>
+<ul>
+<li>clock gating：动态功耗收益可观，实现难度低，时序和验证影响通常较小。</li>
+<li>multi-Vt / multi-channel：主要降低静态功耗，不提升实现复杂度。</li>
+<li>multi-voltage：动态和静态都有收益，但验证和实现复杂度上升。</li>
+<li>power gating：静态功耗收益最大，验证、实现复杂度提升。</li>
+<li>DVFS：收益很高，但系统和验证复杂度也最高。</li>
+</ul>
+<p>没有免费的低功耗技术。每一种技术都在收益、面积、时序、验证和实现成本之间做权衡。</p>
+<h2 id="3-基于-golden-upf-的-eda-flow">3. 基于 Golden UPF 的 EDA Flow</h2>
+<p>所谓golden upf，指的是整个流程下来用的都是同一套upf文件，维护起来比较简单。</p>
+<p>此外还有一种upf flow，每个阶段不太一样，维护起来比较麻烦。</p>
+<h3 id="3-1-rtl-阶段">3.1 RTL 阶段</h3>
+<p>在系统架构确定之后，就可以开展UPF的设计工作。根据架构设计，在UPF中定义电源域、电源状态、电源约束、电源端口、电源连接、电源开关、电源隔离、电源保护等信息。</p>
+<p>这个阶段还未进行综合，主要的保障手段通常为：</p>
+<ul>
+<li>通过rlt + upf 进行rtl阶段的clp/vclp检查。</li>
+<li>通过rtl + upf 进行vcs低功耗前仿。</li>
+</ul>
+<h3 id="3-2-综合阶段">3.2 综合阶段</h3>
+<p>综合阶段，综合工具读入 UPF 后，工具会根据 power domain、supply set、isolation、retention、level shifter、power switch 等约束插入或保留相关结构。如果相关语句错误，或部分macro的backup power没有显示连接，则工具会报相应错误。综合完后后会吐出网表文件，主要的保障手段通常为：</p>
+<ul>
+<li>通过 网表文件 + upf 进行网表阶段的clp/vclp检查。</li>
+<li>通过 网表文件 + upf 进行vcs低功耗仿真。</li>
+<li>通过 网表文件 + upf 进行一致性检查，如formality。</li>
+</ul>
+<h3 id="3-3-后端阶段">3.3 后端阶段</h3>
+<p>后端会输出包含完整电源信息的apr pr/pg网表，主要的保障手段通常为：</p>
+<ul>
+<li>通过 pg网表 + upf 进行PG阶段的clp/vclp检查。</li>
+<li>通过 pg网表 进行vcs低功耗后仿。</li>
+<li>通过 pr网表 + upf 进行一致性检查，如formality。</li>
+</ul>
+<p>对于电源端口较多的复杂设计，formality比对会异常慢，可通过约束电源方向及固定值来极大加速比对过程。</p>
+<h3 id="3-4-常见-clp-vclp-问题">3.4 常见 CLP/VCLP 问题</h3>
+<p>clp/vclp检查能同时暴露多个维度的问题，如upf，网表，甚至是lib库：</p>
+<ul>
+<li>综合或 APR 网表里出现散落单元，电源域归属不清晰。</li>
+<li>UPF 中引用的 object 不存在，或层级路径和网表不一致。</li>
+<li>多轨电源 cell 的 backup supply 未显示连接。</li>
+<li>关断域输出跨到常开域时缺少 isolation，或 isolation clamp 值不合理。</li>
+<li>库中 pin 的 power domain 设置错误，导致工具判断 cell 供电关系异常。</li>
+<li>缺少 power state，或者 power state 定义和真实模式不匹配。</li>
+<li>PSW 开关表达式交叠、不互补，或者多个 power state 下控制关系不唯一。</li>
+</ul>
+<h2 id="4-工程实现上的要点">4 工程实现上的要点</h2>
+<h3 id="4-1-典型组成">4.1 典型组成</h3>
+<p>一个典型的低功耗实现方案包含以下要素：</p>
+<ul>
+<li>位于 always-on 域的PMU ，通过 APB/AHB 等总线暴露功耗管理寄存器。</li>
+<li>软件或固件配置功耗管理寄存器，产生 <code>PSW_EN</code>、<code>ISO_EN</code>、<code>retention enable</code>、<code>clock gate enable</code> 等控制信号。</li>
+<li>可关断模块内部的主电源由 power switch cell 控制，控制信号本身必须来自常开电源域。</li>
+<li>关断域输出到常开域或其他工作域时，需要 isolation cell 防止 X 态或未知电平向外传播。</li>
+<li>如果关断前需要保留状态，需要 retention register 或 retention SRAM，并明确 save / restore 时序。</li>
+</ul>
+<p>这里最容易忽略的是：<strong>控制低功耗的信号链路本身不能随着被控模块一起断电。</strong> 例如 PSW 控制、isolation 控制、sleep/ack 握手、复位保持等信号，通常要由 AO 域供电，或者通过 AO buffer 维持。否则模块一旦关断，控制信号也失效，系统就无法可靠地再次唤醒它。</p>
+<h3 id="4-2-上下电顺序">4.2 上下电顺序</h3>
+<p>Power gating 不是把 <code>sleep</code> 信号拉起来这么简单。关断和唤醒都要有明确顺序，否则容易出现 X 态传播、状态丢失、门控时钟异常、复位释放过早等问题。</p>
+<p>一个常见的 Power Down 流程可以概括为：</p>
+<ol>
+<li>停止向该模块发起新事务，等待正在进行的事务完成。</li>
+<li>将模块相关软件复位或硬件复位置为有效，使内部状态进入可控状态。</li>
+<li>关闭该模块相关门控时钟，避免关断过程中继续翻转。</li>
+<li>使能 isolation，让关断域输出被钳位到安全值。</li>
+<li>拉起 sleep / power down 请求，关闭 power switch。</li>
+<li>等待 <code>sleep_ack</code> 或电源稳定状态反馈，确认关断完成。</li>
+</ol>
+<p>对应的 Power Up 流程通常反过来，但不应简单机械反序：</p>
+<ol>
+<li>取消 sleep / power down 请求，打开 power switch。</li>
+<li>等待电源稳定或 <code>sleep_ack</code> 表示上电完成。</li>
+<li>关闭 isolation，让输出重新由真实逻辑驱动。</li>
+<li>打开模块门控时钟。</li>
+<li>释放复位，允许模块重新参与系统事务。</li>
+</ol>
+<p>实际项目里，复位、isolation、clock gate、sleep/ack 的具体先后要结合 IP 协议和低功耗 cell 要求定义，但原则很明确：<strong>先让模块安静下来，再隔离，再断电；先让电源稳定，再解除隔离、打开时钟、释放复位。</strong></p>
+<p>仿真和后仿里也要给上下电过程留足时间间隔。特别是后仿，power on/off、isolation enable、reset release、clock enable 如果挤在同一拍附近，很容易出现 X 传播、时序窗口不清晰或工具模型行为不一致的问题。</p>
+<h3 id="4-3-psw-注意事项">4.3 PSW 注意事项</h3>
+<p>Power switch cell 的作用是把全局电源连接到局部关断域电源。它的收益很直接，但实现上有两个常见坑：控制链路和上电浪涌。</p>
+<p>首先，PSW 的 enable 链路通常需要 AO 供电。某些工艺库会提供 head buffer / AO buffer 这类 cell，用来把 <code>HEADEN</code>、<code>SLEEP</code> 等控制信号传递到关断域内部，同时保证即使局部 VDD 被关掉，控制信号路径仍然可控。</p>
+<p>其次，大 power domain 需放缓其上电过程，否则会带来明显的 inrush current，可能造成 IR drop、电源噪声和唤醒失败。这里以双链psw为例：</p>
+<ul>
+<li>先打开小驱动 power switch管，再打开大驱动 power switch管。</li>
+<li>使用 daisy chain 或分组 enable，让 power switch 分批逐级开启。</li>
+<li>根据电源网络能力、domain 电容和唤醒时间要求，设置合理的上电间隔。</li>
+<li>后端和仿真需要能看到这些时序假设，否则版图和验证可能各按各的理解实现。</li>
+</ul>
+<p>这也是为什么 power gating 不能只由 RTL 或 UPF 单点决定，它需要架构、设计、验证、后端和电源完整性分析一起闭环。</p>
+<h2 id="5-结语-低功耗设计的本质是系统取舍">5. 结语：低功耗设计的本质是系统取舍</h2>
+<p>低功耗设计最难的地方，不是某个技术名词，而是取舍。</p>
+<p>降低功耗可能带来面积增加；降低电压可能带来时序风险；power gating 能降漏电，但会引入状态保存和验证复杂度；DVFS 收益很高，但需要软硬件调度配合；Memory 拆分看似灵活，却可能增加面积、功耗和后端难度。</p>
+<p>所以，一个成熟的 SoC 低功耗方案，应该回答清楚这些问题：</p>
+<ul>
+<li>哪些场景最耗电？</li>
+<li>哪些模块真正值得优化？</li>
+<li>是动态功耗为主，还是静态功耗为主？</li>
+<li>是要降平均功耗，还是要压峰值？</li>
+<li>哪些技术收益足够大，值得承担实现和验证成本？</li>
+<li>哪些优化只是“看起来很低功耗”，但实际收益有限？</li>
+</ul>
+<p>低功耗不是把所有技术都堆上去，而是在正确的层次，用合适的复杂度，解决真实的功耗瓶颈。</p>
+<p>如果用一句工程化的话收尾：先让系统少做事，再让模块少翻转，最后再让每一次翻转更便宜。</p>
+<p>最后，如果是做这个方向的，推荐一本书：</p>
+<p>《Low Power Methodology Manual》</p>
+          <nav class="article-nav">
+            <a href="/website/articles/flashattention-npu-pipeline/">上一篇：如何在NPU设计中加速 FlashAttention 计算</a>
+            <span></span>
+          </nav>
+        </article>
+
+        <aside class="toc">
+          <strong>目录</strong>
+          <a class="toc-level-2" href="#1-功耗概述">1. 功耗概述</a><a class="toc-level-3" href="#1-1-power-or-energy">1.1  Power or Energy？</a><a class="toc-level-3" href="#1-2-average-or-peak">1.2 Average or Peak</a><a class="toc-level-3" href="#1-3-dynamic-or-static">1.3 Dynamic or Static</a><a class="toc-level-3" href="#1-4-soc-功耗组成">1.4 SoC 功耗组成</a><a class="toc-level-3" href="#1-5-功耗中的主要占比">1.5 功耗中的主要占比</a><a class="toc-level-2" href="#2-全链路低功耗策略">2. 全链路低功耗策略</a><a class="toc-level-3" href="#2-1-设计层次与功耗收益">2.1 设计层次与功耗收益</a><a class="toc-level-3" href="#2-2-系统架构层低功耗策略">2.2 系统架构层低功耗策略</a><a class="toc-level-3" href="#2-2-处理器层低功耗策略">2.2 处理器层低功耗策略</a><a class="toc-level-3" href="#2-3-模块层低功耗策略">2.3 模块层低功耗策略</a><a class="toc-level-3" href="#2-4-memory-层低功耗策略">2.4. Memory 层低功耗策略</a><a class="toc-level-3" href="#2-5-物理实现层低功耗策略">2.5. 物理实现层低功耗策略</a><a class="toc-level-2" href="#3-基于-golden-upf-的-eda-flow">3. 基于 Golden UPF 的 EDA Flow</a><a class="toc-level-3" href="#3-1-rtl-阶段">3.1 RTL 阶段</a><a class="toc-level-3" href="#3-2-综合阶段">3.2 综合阶段</a><a class="toc-level-3" href="#3-3-后端阶段">3.3 后端阶段</a><a class="toc-level-3" href="#3-4-常见-clp-vclp-问题">3.4 常见 CLP/VCLP 问题</a><a class="toc-level-2" href="#4-工程实现上的要点">4 工程实现上的要点</a><a class="toc-level-3" href="#4-1-典型组成">4.1 典型组成</a><a class="toc-level-3" href="#4-2-上下电顺序">4.2 上下电顺序</a><a class="toc-level-3" href="#4-3-psw-注意事项">4.3 PSW 注意事项</a><a class="toc-level-2" href="#5-结语-低功耗设计的本质是系统取舍">5. 结语：低功耗设计的本质是系统取舍</a>
+        </aside>
+      </main>
+    
+    <footer class="footer">
+      <div class="shell footer-inner">
+        <span>© 2026 Ch'in</span>
+        <span>Built for silicon notes and technical writing.</span>
+      </div>
+    </footer>
+    <script src="/website/main.js?v=20260621-copy-fields"></script>
+  </body>
+</html>
