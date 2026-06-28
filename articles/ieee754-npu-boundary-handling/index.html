@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NPU 设计中自研浮点单元的 IEEE 754 工程取舍 | Ch'in</title>
+    <meta name="description" content="结合 IEEE 754-2019 标准语义，梳理 NPU 浮点单元中 zero、subnormal、inf、NaN、rounding、overflow、underflow、inexact 和 sticky flags 的硬件处理方式。" />
+    <script>document.documentElement.classList.add("js");</script>
+    <script>window.SITE_CONFIG={"basePath":"/website","contactApiBase":"","emailjs":{"serviceId":"QQ service_3vgpasm","templateId":"template_ukyfa7m","publicKey":"HY_NPIaIkw5fY4BKG","toEmail":"kvinkin@qq.com"}};</script>
+    <link rel="stylesheet" href="/website/styles.css?v=20260621-copy-fields" />
+    <script>window.MathJax={tex:{inlineMath:[["\\(","\\)"]],displayMath:[["\\[","\\]"]]},svg:{fontCache:"global"}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  </head>
+  <body>
+    
+  <nav class="nav">
+    <div class="shell nav-inner">
+      <a class="brand" href="/website/" aria-label="首页">
+        <span class="brand-mark">K</span>
+        <span>Ch'in</span>
+      </a>
+      <div class="nav-links">
+        <a class="" href="/website/">首页</a>
+        <a class="" href="/website/resume/">简历</a>
+        <a class="active" href="/website/articles/">文章</a>
+        <a href="/website/#contact">联系</a>
+        <a class="nav-cta" href="/website/articles/ieee754-npu-boundary-handling/">最新文章</a>
+      </div>
+    </div>
+  </nav>
+
+    
+      <main class="shell article-layout">
+        <article class="post">
+          <a class="back-link" href="/website/articles/">← 返回文章列表</a>
+          <h1>NPU 设计中自研浮点单元的 IEEE 754 工程取舍</h1>
+          <p class="post-lede">结合 IEEE 754-2019 标准语义，梳理 NPU 浮点单元中 zero、subnormal、inf、NaN、rounding、overflow、underflow、inexact 和 sticky flags 的硬件处理方式。</p>
+          <div class="article-meta"><span>NPU设计</span><span>IEEE 754</span><span>NPU</span><span>浮点单元</span><span>2026-06-28</span></div>
+          
+          <p>最近在整理 NPU 浮点计算单元里的 IEEE 754 边界处理逻辑，发现这一块细节还是比较多的，就索性梳理了下。Synopsys DesignWare 中当然有比较成熟的浮点运算 IP，例如 <code>fp_add</code>、<code>fp_mul</code>、<code>fp_mac</code>、<code>fp_piped_add</code>、<code>fp_piped_mul</code> 等。但对于自研 NPU 而言，直接使用通用浮点 IP 并不总是最优解。Tensor/Vector 路径通常会有自己的数据格式、吞吐目标、异常策略、旁路逻辑和功耗门控需求。如果把这些都交给通用 IP，面积、时序、功耗和调度灵活性未必合适。</p>
+<p>因此，不少自研 NPU 会自己实现一套更贴合架构的数据格式转换和浮点运算单元。为了支持 IEEE 754，做浮点硬件时，就不得不考虑一些非正常值的处理：</p>
+<ul>
+<li>输入到底是 normal、subnormal、zero、inf 还是 NaN？</li>
+<li><code>+0</code> 和 <code>-0</code> 在计算路径中要不要完整保留？</li>
+<li><code>0 * inf</code>、<code>inf + (-inf)</code>、<code>sNaN</code> 进入 MAC 后如何处理？</li>
+<li>subnormal 是严格支持，还是做 DAZ / FTZ？</li>
+<li>IEEE 754 的异常 flag 如何映射到 NPU 架构级状态寄存器？</li>
+</ul>
+<p>这些问题看起来是“边界条件”，但在 NPU / AI 推理芯片里，它们会直接影响精度、 PPA、时序、吞吐率、软件可控性，以及模型数值稳定性。</p>
+<p>本文会把内容分成两层：</p>
+<ol>
+<li><strong>IEEE 754-2019 标准语义</strong>：标准原文明确规定了什么。</li>
+<li><strong>NPU 工程取舍</strong>：为了实现高吞吐，硬件如何做简化。</li>
+</ol>
+<p>需要先说明一点：IEEE 754-2019 定义了 binary16(即FP16)、binary32、binary64、binary128 等二进制浮点格式。BF16、TF32、FP8、FP4 这类 AI 低精度格式不是 IEEE 754-2019 的标准基本格式。工程上它们通常借鉴 IEEE 754 的 <code>S/E/M</code> 编码思想和特殊值分类方式，但具体 NaN、inf、subnormal、rounding 行为要以芯片 ISA、编译器和 runtime 约定为准。</p>
+<h2 id="1-ieee-754-2019-相关章节">1. IEEE 754-2019 相关章节</h2>
+<p>IEEE 754-2019 和硬件实现最相关的部分主要有几块：</p>
+<div class="table-wrap"><table><thead><tr><th>协议章节</th><th>关注点</th><th>对硬件的直接影响</th></tr></thead><tbody><tr><td>Clause 3.4</td><td>浮点格式编码</td><td><code>S/E/T</code> 拆分，zero/subnormal/normal/inf/NaN 分类</td></tr><tr><td>Clause 3.6 Table 3.5</td><td>binary16/32/64/128 参数</td><td>位宽、precision、exponent width、bias</td></tr><tr><td>Clause 4.3</td><td>rounding-direction attributes</td><td>RNE、RTZ、RTP、RTN 等舍入模式</td></tr><tr><td>Clause 6.1</td><td>infinity arithmetic</td><td><code>inf</code> 的传播和非法组合</td></tr><tr><td>Clause 6.2</td><td>NaN</td><td>qNaN、sNaN、payload、quieting</td></tr><tr><td>Clause 6.3</td><td>sign bit</td><td><code>+0/-0</code>、积/商符号、精确零和舍入方向</td></tr><tr><td>Clause 7.1-7.6</td><td>exceptions and flags</td><td>invalid、divideByZero、overflow、underflow、inexact</td></tr></tbody></table></div>
+<p>这几部分基本决定了浮点单元的边界处理框架：</p>
+<pre><code>classify -&gt; special-case decision -&gt; main datapath -&gt; normalize -&gt; round -&gt; pack -&gt; flags</code></pre>
+<p>如果做的是 CPU FPU，那就需要尽量贴近完整协议语义。但 NPU 计算通路还不太一样，它更强调：</p>
+<ul>
+<li>高吞吐；</li>
+<li>固定 pipeline；</li>
+<li>多 lane 并行；</li>
+<li>低面积和低功耗；</li>
+<li>可接受一定程度的精度损失；</li>
+<li>异常可记录，但不能频繁打断流水。</li>
+</ul>
+<p>因此下文在介绍的时候会写清楚：<strong>标准怎么说</strong>，以及 <strong>NPU 设计工程上怎么取舍</strong>。</p>
+<h2 id="2-ieee-754-浮点数结构">2. IEEE 754 浮点数结构</h2>
+<p>IEEE 754-2019 Clause 3.4 定义了浮点数二进制的编码结构。一个二进制浮点数可以拆成：</p>
+<pre><code>S | E | T</code></pre>
+<p>其中：</p>
+<ul>
+<li><code>S</code> 是 1 bit 符号位；</li>
+<li><code>E</code> 是偏置后的指数位；</li>
+<li><code>T</code> 是尾数位；</li>
+<li>precision <code>p</code> 包含隐含位，所以对 FP32 来说 <code>p = 24</code>，但显式 fraction 只有 23 bit。</li>
+</ul>
+<p>以 binary32 为例：</p>
+<pre><code>S1E8T23
+bias = 127
+p = 24</code></pre>
+<p>Clause 3.4 中将所有浮点数分为以下五类：</p>
+<div class="table-wrap"><table><thead><tr><th>条件</th><th>类型</th><th>有效数含义</th></tr></thead><tbody><tr><td><code>E = 0, T = 0</code></td><td>zero</td><td><code>+0</code> 或 <code>-0</code></td></tr><tr><td><code>E = 0, T != 0</code></td><td>subnormal</td><td>无隐含前导 1</td></tr><tr><td><code>1 &lt;= E &lt;= 2^w - 2</code></td><td>normal</td><td>有隐含前导 1</td></tr><tr><td><code>E = 2^w - 1, T = 0</code></td><td>infinity</td><td><code>+inf</code> 或 <code>-inf</code></td></tr><tr><td><code>E = 2^w - 1, T != 0</code></td><td>NaN</td><td>qNaN 或 sNaN</td></tr></tbody></table></div>
+<p>其中qNaN 和 sNaN区别在于尾数最高位是否为1。</p>
+<p>上述看起来可能不太清晰，这里以FP32进行举例说明：</p>
+<div class="table-wrap"><table><thead><tr><th>条件</th><th>类型</th><th>有效数含义</th></tr></thead><tbody><tr><td><code>E = 0, T = 0</code></td><td>zero</td><td><code>+0</code> 或 <code>-0</code></td></tr><tr><td><code>E = 0, T != 0</code></td><td>subnormal</td><td>无隐含前导 1</td></tr><tr><td><code>1 &lt;= E &lt;= 254</code></td><td>normal</td><td>有隐含前导 1</td></tr><tr><td><code>E = 255, T = 0</code></td><td>infinity</td><td><code>+inf</code> 或 <code>-inf</code></td></tr><tr><td><code>E = 255, T != 0</code></td><td>NaN</td><td>qNaN 或 sNaN</td></tr></tbody></table></div>
+<p>这意味着硬件 unpack 阶段不是简单把字段拆开，而是必须先做 class decode：</p>
+<pre><code>is_exp_zero = (E == 0);
+is_exp_all1 = (&amp;E);
+is_frac_zero = (T == 0);
+
+is_zero      = is_exp_zero &amp;&amp; is_frac_zero;
+is_subnormal = is_exp_zero &amp;&amp; !is_frac_zero;
+is_normal    = !is_exp_zero &amp;&amp; !is_exp_all1;
+is_inf       = is_exp_all1 &amp;&amp; is_frac_zero;
+is_nan       = is_exp_all1 &amp;&amp; !is_frac_zero;</code></pre>
+<p>刚才也提到过，NaN 还要进一步区分 qNaN 和 sNaN。Clause 6.2.1 中给出了推荐编码方式：trailing significand field 的首位通常用于区分 quiet / signaling。</p>
+<p>工程上可以写成：</p>
+<pre><code>is_qnan = is_nan &amp;&amp; T[MSB];
+is_snan = is_nan &amp;&amp; !T[MSB];</code></pre>
+<p>这些分类信号会作为 sideband 跟随数据继续向后流动。对 NPU 来说，它们的意义很大：</p>
+<ul>
+<li>决定是否进入主乘法阵列；</li>
+<li>决定是否旁路输出常量；</li>
+<li>决定是否触发 invalid / overflow / underflow 等 sticky flags；</li>
+<li>决定是否做 clock gating 来减少无效翻转。</li>
+</ul>
+<h2 id="3-常见格式与特殊值检测">3. 常见格式与特殊值检测</h2>
+<p>IEEE 754-2019 Clause 3.6 Table 3.5 给出了浮点数的关键参数。</p>
+<div class="table-wrap"><table><thead><tr><th>格式</th><th>总位宽 k</th><th>precision p</th><th>exponent bits w</th><th>trailing bits t</th><th>bias</th></tr></thead><tbody><tr><td>binary16</td><td>16</td><td>11</td><td>5</td><td>10</td><td>15</td></tr><tr><td>binary32</td><td>32</td><td>24</td><td>8</td><td>23</td><td>127</td></tr><tr><td>binary64</td><td>64</td><td>53</td><td>11</td><td>52</td><td>1023</td></tr><tr><td>binary128</td><td>128</td><td>113</td><td>15</td><td>112</td><td>16383</td></tr></tbody></table></div>
+<p>这里有一个容易混淆的地方：<code>precision p</code> 和显式尾数字段 <code>t</code> 不是一回事。</p>
+<p>对于 normal number：</p>
+<pre><code>p = t + 1</code></pre>
+<p>因为 normal number 有一个隐含前导 1。</p>
+<p>所以 binary32 虽然显式存储 23 bit 尾数，但 precision 是 24 bit。</p>
+<p>AI 芯片里常见的格式更多，下表为标准IEEE 754格式之外的一些常用数据格式：</p>
+<div class="table-wrap"><table><thead><tr><th>格式</th><th>位宽</th><th>典型编码</th><th>bias</th></tr></thead><tbody><tr><td>FP24</td><td>24</td><td>S1E8M15</td><td>127</td></tr><tr><td>TF32</td><td>19</td><td>S1E8M10</td><td>127</td></tr><tr><td>BF16</td><td>16</td><td>S1E8M7</td><td>127</td></tr><tr><td>FP8</td><td>8</td><td>S1E5M2</td><td>15</td></tr><tr><td>FP4</td><td>4</td><td>S1E2M1</td><td>1</td></tr></tbody></table></div>
+<p>为什么说典型编码呢？因为协议没有明确指定，那么就完全可以按照需求定制格式，以FP8为例可以有S1E5M2和S1E4M3。</p>
+<p>因此，在写文档的时候最好避免说“FP8/FP4 遵循 IEEE 754”。更准确的说法是：</p>
+<pre><code>FP8/FP4 采用类 IEEE 的 S/E/M 编码和特殊值分类思想，但具体特殊值、NaN、inf、subnormal 和 rounding 行为由架构自定义。</code></pre>
+<p>这句话非常重要。否则软件、验证和硬件会对“IEEE 754 支持程度”产生不同理解。</p>
+<h3 id="3-1-特殊值的检测">3.1 特殊值的检测</h3>
+<p>从硬件实现看，最适合做特殊值检测的位置通常不是 计算单元内部，而是 <code>dequantize / unpack</code> 输出侧。原因如下：</p>
+<ol>
+<li>这里还保留原始格式信息，容易判断 <code>E all 0</code>、<code>E all 1</code>、<code>M == 0</code>、<code>M != 0</code>；</li>
+<li>这里可以提前生成 sideband，让后级只处理统一语义。</li>
+</ol>
+<p>一个比较实用的前端处理表如下：</p>
+<div class="table-wrap"><table><thead><tr><th>输入分类</th><th>前端动作</th><th>数据动作</th><th>状态动作</th></tr></thead><tbody><tr><td>Zero</td><td>生成内部 zero 常量</td><td>保留符号，输出 <code>+0/-0</code> 或架构定义的单一 0</td><td>一般不置异常</td></tr><tr><td>Inf</td><td>生成内部 inf 常量</td><td>输出同符号 inf；若目标格式不支持 inf，则按格式策略饱和或转 NaN</td><td>一般不置异常</td></tr><tr><td>qNaN</td><td>生成内部 qNaN 常量</td><td>通常输出 canonical qNaN</td><td>一般不置 invalid</td></tr><tr><td>sNaN</td><td>quiet 成 qNaN</td><td>将 NaN 尾数 quiet bit 置 1，再输出 qNaN</td><td>置 invalid sticky flag</td></tr><tr><td>Subnormal</td><td>按 CSR/格式策略处理</td><td>严格模式保留；DAZ 模式强制为 signed zero</td><td>可选置 underflow / inexact</td></tr></tbody></table></div>
+<p>很多NPU设计中，对sNaN的处理会采取“上报异常 且 静默降级”策略，可以把 sNaN 的处理集中在前端：</p>
+<pre><code>detect sNaN
+    -&gt; invalid pulse
+    -&gt; set quiet bit
+    -&gt; convert to qNaN
+    -&gt; downstream only sees qNaN</code></pre>
+<p>这样做的好处是，后级模块不再需要反复区分 sNaN/qNaN，只要传播 qNaN 和 sticky invalid 即可。否则 sNaN 如果一路穿过多级流水，可能在多个 stage 被重复识别，导致异常上报语义和验证模型都变复杂。</p>
+<h2 id="4-zero">4. Zero</h2>
+<p>IEEE 754-2019 Clause 3.4 明确指出 signed zero：</p>
+<pre><code>E = 0, T = 0
+value = (-1)^S * 0</code></pre>
+<p>Clause 6.3 又进一步规定了符号位在积、商、和、差以及精确零结果中的处理规则。</p>
+<p>标准语义里，<code>+0</code> 和 <code>-0</code> 在数值比较上通常相等，但在某些运算中有区别：</p>
+<pre><code>1 / +0 = +inf
+1 / -0 = -inf</code></pre>
+<p>精确零求和的符号也不是完全随意的。Clause 6.3 中规定，两个相反符号操作数相加得到精确 0 时，除 <code>roundTowardNegative</code> 外通常得到 <code>+0</code>；在 <code>roundTowardNegative</code> 下得到 <code>-0</code>。</p>
+<p>这就是标准语义。</p>
+<p>但在 NPU 设计中，根据需求可以酌情简化<code>+0/-0</code>。</p>
+<p>例如一个 MAC tree 中，如果内部定点累加和精确抵消为 0，硬件可能直接根据 <code>sum_is_zero</code> 输出：</p>
+<pre><code>32'h00000000</code></pre>
+<p>也就是强制输出 <code>+0</code>。</p>
+<p>这样可以省掉一部分符号归并和特殊舍入模式下的零符号判断。</p>
+<p>但这属于工程降级，而不是 IEEE 754 的完整行为。因此需要在架构文档里说清楚：</p>
+<ul>
+<li>是否严格支持 signed zero；</li>
+<li>计算路径是否保留 <code>-0</code>；</li>
+<li>哪些 rounding mode 下允许强制 <code>+0</code>；</li>
+<li>软件是否能通过 CSR 切换 strict / fast 模式。</li>
+</ul>
+<p>如果没有写清楚，验证会按 IEEE 754 reference model 报错，而硬件团队会觉得这是合理 PPA 取舍。这个坑很常见。</p>
+<h2 id="5-inf">5. Inf</h2>
+<p>IEEE 754-2019 Clause 6.1 把 infinity 看作仿射意义上的无穷大：</p>
+<pre><code>-inf &lt; finite numbers &lt; +inf</code></pre>
+<p>很多含 infinity 的运算是可以正常传播的，例如：</p>
+<pre><code>finite + inf = inf
+finite * inf = inf, finite != 0
+finite / inf = 0
+sqrt(+inf) = +inf</code></pre>
+<p>这些运算通常是 exact，不需要触发异常。</p>
+<p>但 Clause 7.2 对 invalid operation 给出了明确条件，包括：</p>
+<pre><code>0 * inf -&gt; invalid
+inf * 0 -&gt; invalid
+fusedMultiplyAdd(0, inf, c) -&gt; invalid, unless c is qNaN
+inf - inf -&gt; invalid
+0 / 0 -&gt; invalid
+inf / inf -&gt; invalid
+sqrt(negative finite) -&gt; invalid</code></pre>
+<p>默认异常处理下，invalid operation 的浮点结果应该是 qNaN。</p>
+<p>假设硬件执行：</p>
+<pre><code>A * B + C</code></pre>
+<p>如果乘法路径遇到：</p>
+<pre><code>A = 0
+B = inf</code></pre>
+<p>即使后面还有一个 <code>+ C</code>，乘法部分已经触发 invalid。</p>
+<p>如果乘积是 <code>+inf</code>，而 <code>C = -inf</code>，则加法路径遇到：</p>
+<pre><code>(+inf) + (-inf)</code></pre>
+<p>同样触发 invalid。</p>
+<p>因此，非数处理不能只在最后 pack 阶段做一个结果检查。更稳妥的硬件结构是：</p>
+<ol>
+<li>unpack 阶段识别 zero、inf、NaN；</li>
+<li>乘法前识别 <code>zero * inf</code>；</li>
+<li>FMA 中识别 <code>inf + (-inf)</code> 这类 inf 的加减；</li>
+<li>invalid 通过 sideband 向后传播；</li>
+<li>最终 pack 阶段按优先级选择 qNaN / inf / zero / normal result。</li>
+</ol>
+<h3 id="5-1-工程问题示例-0-inf">5.1 工程问题示例：<code>0 * inf</code></h3>
+<p>如果只看 IEEE 754 标准，<code>0 * inf -&gt; invalid -&gt; qNaN</code> 很清楚。</p>
+<p>但 AI 模型里经常会故意构造 <code>inf</code> 或 <code>-inf</code>：</p>
+<ul>
+<li>attention mask；</li>
+<li>padding mask；</li>
+<li>dropout mask；</li>
+<li>softmax 前置屏蔽；</li>
+<li>某些稀疏或选择类算子里的哨兵值。</li>
+</ul>
+<p>例如 attention 中常见做法是把 mask 位置加上 <code>-inf</code>，让 softmax 后概率变成 0。</p>
+<p>如果某条融合路径中因为数据流重排、量化、矩阵计算或 mask 合并，出现：</p>
+<pre><code>0 * (-inf)</code></pre>
+<p>严格 IEEE 模式会生成 qNaN。这个 qNaN 一旦进入宽矩阵通路，可能会污染整行、整个 block，甚至影响后续 layer。</p>
+<p>所以一些 NPU 会在 CSR 中提供动态策略位，</p>
+<p>通过配置相关寄存器可实现：完全兼容协议模式 和快速模式。</p>
+<p>对于完全兼容协议模式，硬件按 Clause 7.2 处理：</p>
+<pre><code>0 * inf -&gt; invalid
+result -&gt; qNaN
+invalid flag -&gt; 1</code></pre>
+<p>适用于严格调试、数值验证、需要和 IEEE reference model 对齐的场景。</p>
+<p>对于快速模式，硬件可以在特定算子路径中把 <code>0 * inf</code> 降级为 0 或 某一常量：</p>
+<pre><code>0 * inf -&gt; 0</code></pre>
+<p>这适用于明确把 <code>inf</code> 当 mask 哨兵值使用的场景。</p>
+<p>但这必须写进架构规范。因为它不是 IEEE 754 标准行为，而是 NPU 面向 AI 工作负载的工程覆盖策略。</p>
+<p>我个人建议文档中把这种行为写成：</p>
+<pre><code>In strict IEEE mode, zero times infinity signals invalid and returns qNaN.
+In tensor mask-tolerant mode, selected zero-infinity products may be squashed to signed zero under CSR control.</code></pre>
+<p>这样验证、编译器和 runtime 都有明确边界。</p>
+<h2 id="6-nan">6. NaN</h2>
+<p>IEEE 754-2019 Clause 6.2 明确要求支持两类 NaN：</p>
+<ul>
+<li>signaling NaN，也就是 sNaN；</li>
+<li>quiet NaN，也就是 qNaN。</li>
+</ul>
+<p>Clause 6.2.1 对 浮点数的 NaN 编码做了规定：</p>
+<pre><code>E = all 1
+T != 0</code></pre>
+<p>此时该数是 NaN。推荐编码中，尾数的首位用于区分 qNaN 和 sNaN。工程上常用判断是：</p>
+<pre><code>is_nan  = exp_all_ones &amp;&amp; frac_nonzero;
+is_qnan = is_nan &amp;&amp; frac_msb;
+is_snan = is_nan &amp;&amp; !frac_msb;</code></pre>
+<p>Clause 6.2 还规定：sNaN 作为操作数参与 general-computational 或 signaling-computational operation 时，会 signal invalid operation。默认异常处理下，如果需要给出浮点结果，结果应为 qNaN。对应到硬件，一般会这样做：</p>
+<ol>
+<li>unpack 阶段检测 sNaN；</li>
+<li>拉高 invalid sideband；</li>
+<li>将 sNaN quiet 成 qNaN；</li>
+<li>后续流水只传播 qNaN；</li>
+<li>pack 阶段输出 canonical qNaN 或固定默认 qNaN。</li>
+</ol>
+<p>IEEE 754 对 NaN payload 有诊断信息保留的建议。Clause 6.2.3 中提到，如果一个 NaN 输入被传播，结果最好保留其 payload；如果多个 NaN 输入同时出现，标准不指定选择哪个 payload。</p>
+<p>但在 NPU 计算路径里，保留 payload 往往不划算。更常见的工程实现是直接输出固定默认 qNaN，例如 FP32 中常见的：</p>
+<pre><code>32'h7FC00000</code></pre>
+<p>这不是完整 payload-preserving 行为，但可以显著简化：</p>
+<ul>
+<li>多路 NaN 选择；</li>
+<li>MAC array 内部旁路；</li>
+<li>FMA 特殊值优先级；</li>
+<li>pack 阶段 MUX；</li>
+<li>验证 reference model。</li>
+</ul>
+<p>因此建议规格里写清：</p>
+<pre><code>Scalar FP path preserves NaN payload when possible.
+Tensor path returns canonical default qNaN and only guarantees sticky invalid flag.</code></pre>
+<p>这样就把标准语义和 NPU 工程策略分开了。</p>
+<h2 id="7-subnormal">7. Subnormal</h2>
+<p>IEEE 754-2019 Clause 3.4 中，<code>E = 0, T != 0</code> 表示 subnormal。它没有 normal 数的隐含前导 1。subnormal 的意义是实现 gradual underflow，让数值在接近 0 时不是突然断崖式清零，而是逐渐过渡。</p>
+<p>标准语义很漂亮，但硬件代价并不低。严格支持 subnormal 通常意味着：</p>
+<ul>
+<li>乘法输入端需要识别 <code>E = 0, T != 0</code>；</li>
+<li>需要 LZD / LZC 做前导零检测；</li>
+<li>需要动态左移，让尾数规格化；</li>
+<li>指数需要补偿；</li>
+<li>加法输出端需要支持 subnormal 结果生成；</li>
+<li>underflow 检测要和 rounding 结合；</li>
+<li>pipeline 级数和关键路径都可能增加。</li>
+</ul>
+<p>因此，高吞吐的NPU设计中通常会对该部分进行简化处理。</p>
+<h3 id="7-1-daz-denormals-are-zero">7.1 DAZ：Denormals Are Zero</h3>
+<p>输入端检测到 subnormal 后，直接把它当作 0：</p>
+<pre><code>subnormal input -&gt; signed zero</code></pre>
+<p>这样可以省掉输入端规格化逻辑。</p>
+<h3 id="7-2-ftz-flush-to-zero">7.2 FTZ：Flush To Zero</h3>
+<p>如果输出端 rounded 值落入 subnormal 区间，直接输出 0：</p>
+<pre><code>subnormal output -&gt; signed zero</code></pre>
+<p>这样可以省掉输出端渐进下溢处理。</p>
+<p>但 DAZ / FTZ 不是 IEEE 754 严格行为。它们属于工程降级，需要明确说明：</p>
+<ul>
+<li>哪些格式启用 DAZ；</li>
+<li>哪些格式启用 FTZ；</li>
+<li>是否由 CSR 控制；</li>
+<li>是否影响 underflow / inexact flag；</li>
+<li>输入清零是否保留符号；</li>
+<li>输出清零是否保留符号。</li>
+</ul>
+<p>对于 FP16 / BF16 / TF32，很多 NPU 会默认走 DAZ / FTZ 以换 PPA。</p>
+<p>对于 FP8 / FP4，反而要更谨慎。因为低位宽格式本身表达范围小，如果再粗暴清零 subnormal，可能会显著影响量化误差。所以工程上可能出现：</p>
+<ul>
+<li>FP16/BF16 Tensor 路径默认 DAZ / FTZ；</li>
+<li>FP8/FP4 输入保留局部 subnormal 旁路；</li>
+<li>compiler 禁止某些会丢 subnormal 的反量化路径；</li>
+<li>FP8 反量化优先到 BF16，而不是 FP16，以保留动态范围。</li>
+</ul>
+<p>这类策略如果不写清楚，软件以为数值还在，硬件入口已经清零，最后误差会很难定位。</p>
+<h2 id="8-rounding">8. Rounding</h2>
+<p>IEEE 754-2019 Clause 4.3 规定，除非另有说明，操作应当先得到无限精度、无限范围的中间结果，然后根据 rounding-direction attribute 舍入到目标格式。</p>
+<p>标准定义了几类舍入方向：</p>
+<ul>
+<li><code>roundTiesToEven</code>：就近舍入，正好一半时舍入到最近的偶数，如2.5舍入到2，3.5舍入到4；</li>
+<li><code>roundTiesToAway</code>：就近舍入，正好一半时舍入到幅值更大的结果，即四舍五入；</li>
+<li><code>roundTowardZero</code>：向 0 舍入，也就是截断；</li>
+<li><code>roundTowardPositive</code>：向 <code>+inf</code> 舍入；</li>
+<li><code>roundTowardNegative</code>：向 <code>-inf</code> 舍入。</li>
+</ul>
+<p>一般自己设计的FP单元通常不需要完整支持所有舍入模式。常见搭配是：</p>
+<ul>
+<li>RNE：round to nearest, ties to even；</li>
+<li>RTZ：round toward zero。</li>
+</ul>
+<p>也就是上述的 <code>roundTiesToEven</code> 和 <code>roundTowardZero</code>。</p>
+<h2 id="9-异常">9. 异常</h2>
+<p>IEEE 754-2019 Clause 7 定义了五类异常：</p>
+<pre><code>invalid operation
+divideByZero
+overflow
+underflow
+inexact</code></pre>
+<p>其中 Clause 7.1 说明了默认异常处理的基本思想：给出默认结果（常量）、继续执行，并设置对应 status flag。也就是说，标准本身并不要求每次浮点异常都精确打断程序。这点和 NPU 很契合。NPU 更适合用 sticky flags，而不是精确中断。</p>
+<h3 id="9-1-overflow">9.1 Overflow</h3>
+<p>Clause 7.4 定义 overflow：如果无界指数范围下的舍入结果超过目标格式最大有限值，就触发 overflow。默认结果取决于舍入方向：</p>
+<ul>
+<li>RNE / roundTiesToAway：溢出到带符号 infinity；</li>
+<li>RTZ：溢出到带符号最大有限值；</li>
+<li>RTP / RTN：根据符号和方向决定 infinity 或最大有限值。</li>
+</ul>
+<p>同时，默认 overflow 还会 signal inexact。</p>
+<h3 id="9-2-underflow">9.2 Underflow</h3>
+<p>Clause 7.5 定义 underflow：检测到 tiny non-zero result 时触发。对 binary format，tininess 可以选择 before rounding 或 after rounding，但一个实现中要保持一致。</p>
+<p>标准还特别强调：underflow 的默认结果仍然是 rounded result，可能是 zero、subnormal，也可能是最小 normal。</p>
+<p>更细的一点是：如果 underflow 后的 rounded result 是 exact，则默认处理下可以不 raise underflow flag。只有 inexact tiny result 才会把 underflow flag 和 inexact 一起拉起来。</p>
+<h3 id="9-3-inexact">9.3 Inexact</h3>
+<p>Clause 7.6 定义 inexact：如果 rounded 结果 和无限精度、无限范围下的数学结果不同，就 signal inexact。比如十进制里：</p>
+<pre><code>1 / 3 = 0.333333333...</code></pre>
+<p>如果只能保留 3 位小数：</p>
+<pre><code>1 / 3 = 0.333</code></pre>
+<p>这就是 inexact。这意味着只要舍入丢了信息，就可能有 inexact。</p>
+<p>但在 NPU 里，如果每个 lane 都精确维护 <code>inexact</code>，成本会很高。工程上常见做法是：</p>
+<ul>
+<li>主路径内部生成简化版 inexact sideband；</li>
+<li>lane 级 OR reduction；</li>
+<li>block / kernel 结束后写 CSR sticky flag；</li>
+<li>软件按需读取，而不是每次异常都中断。</li>
+</ul>
+<h3 id="9-4-异常上报">9.4 异常上报</h3>
+<p>IEEE 754-2019 Clause 7.1 要求每类异常都有对应 status flag，并且用户可以测试、修改、保存和恢复这些 flags。</p>
+<p>在 NPU 里，我们通常不会做精确异常中断。原因很简单：</p>
+<ul>
+<li>计算单元数量太多；</li>
+<li>异常可能在任意 cycle 出现；</li>
+<li>精确中断会破坏固定流水；</li>
+<li>AI kernel 更关心整体运行完成后的状态；</li>
+<li>许多异常只是诊断信息，不应该阻塞吞吐。</li>
+</ul>
+<p>因此工程上通常做成 sticky flags：</p>
+<pre><code>lane_exception
+    -&gt; PE local OR
+    -&gt; tile/block OR
+    -&gt; engine-level sticky flags
+    -&gt; CSR readback</code></pre>
+<p>可以抽象成：</p>
+<pre><code>csr_invalid     &lt;= csr_invalid     | block_invalid;
+csr_div_by_zero &lt;= csr_div_by_zero | block_div_by_zero;
+csr_overflow    &lt;= csr_overflow    | block_overflow;
+csr_underflow   &lt;= csr_underflow   | block_underflow;
+csr_inexact     &lt;= csr_inexact     | block_inexact;</code></pre>
+<p>这和 IEEE 754 的默认非停止异常处理精神并不冲突：默认情况下，异常被记录，计算继续执行。</p>
+<p>真正需要定义清楚的是：</p>
+<ul>
+<li>sticky flag 是按 lane、warp、tile、kernel 还是 engine 聚合；</li>
+<li>flag 何时清零；</li>
+<li>多个 kernel 是否共享 flag；</li>
+<li>异常是否影响输出编码；</li>
+<li>fast mode 下是否仍写 flag；</li>
+<li>DAZ / FTZ 是否 raise underflow / inexact。</li>
+</ul>
+<p>这些是 NPU 架构文档必须写清的内容。</p>
+<h3 id="9-5-异常的简化处理">9.5 异常的简化处理</h3>
+<p>如果输入已经是 NaN，或者某一级已经判定结果必然是默认 qNaN，那么继续让主乘法阵列、加法树、normalize、rounding 逻辑翻转，通常没有意义。一种常见的优化手段如下：</p>
+<p>检测到特殊值输入，直接输出常量结果：</p>
+<pre><code>is_nan -&gt; default_qnan
+is_zero_product -&gt; zero
+is_inf_result -&gt; signed_inf</code></pre>
+<p>对于 <code>0 * inf</code>，还要看当前 CSR 模式：</p>
+<pre><code>strict mode: qNaN + invalid
+mask-tolerant mode: zero</code></pre>
+<h2 id="10-边界处理流程示例">10. 边界处理流程示例</h2>
+<p>把标准语义和工程取舍结合起来，一个 NPU 浮点单元可以这样组织。</p>
+<h3 id="stage-0-unpack-classify">Stage 0：Unpack / Classify</h3>
+<ul>
+<li>拆出 <code>S/E/T</code>；</li>
+<li>根据 Clause 3.4 识别 zero、subnormal、normal、inf、NaN；</li>
+<li>对 NaN 区分 qNaN / sNaN；</li>
+<li>根据格式生成 bias、emin、emax；</li>
+<li>输出分类 sideband。</li>
+</ul>
+<h3 id="stage-1-policy-override">Stage 1：Policy Override</h3>
+<ul>
+<li>根据 CSR 决定是否启用 DAZ；</li>
+<li>根据 CSR 决定是否启用 <code>mask_en</code>；</li>
+<li>sNaN quiet 成 qNaN，并记录 invalid；</li>
+<li>对明确可旁路的输入生成 special-case 控制。</li>
+</ul>
+<h3 id="stage-2-main-datapath-special-datapath">Stage 2：Main Datapath / Special Datapath</h3>
+<ul>
+<li>normal 数据进入 multiplier / adder / FMA；</li>
+<li><code>zero * inf</code>、<code>inf - inf</code> 等组合进入 special-case logic；</li>
+<li>qNaN 直接传播或转成默认 qNaN；</li>
+<li>invalid / overflow / underflow / inexact 以 sideband 形式向后流动。</li>
+</ul>
+<h3 id="stage-3-normalize">Stage 3：Normalize</h3>
+<ul>
+<li>对主路径结果做规格化；</li>
+<li>计算 <code>E_calc</code>；</li>
+<li>生成 GRS 位；</li>
+<li>检测 tiny / huge 候选状态；</li>
+<li>准备 rounding。</li>
+</ul>
+<h3 id="stage-4-round">Stage 4：Round</h3>
+<ul>
+<li>RTZ：直接截断；</li>
+<li>RNE：根据 <code>G &amp; (L | R | S)</code> 判断是否进位；</li>
+<li>处理尾数进位导致的指数加一；</li>
+<li>检测 rounding 后 overflow；</li>
+<li>根据工程策略处理 subnormal output。</li>
+</ul>
+<h3 id="stage-5-pack-commit">Stage 5：Pack / Commit</h3>
+<ul>
+<li>按目标格式重新编码；</li>
+<li>根据优先级选择 normal、zero、inf、qNaN；</li>
+<li>聚合 lane-level flags；</li>
+<li>写入 CSR sticky flags；</li>
+<li>输出数据和状态。</li>
+</ul>
+<p>其中最容易出 bug 的不是主乘法器，而是优先级。</p>
+<p>例如一个 FMA 中同时存在 qNaN 输入、<code>0 * inf</code>、overflow 候选时，最后到底输出什么、是否写 invalid，要严格对齐标准和架构文档。Clause 7.2 对 FMA 的 <code>0 * inf</code> 还专门提到：如果加数 <code>c</code> 是 qNaN，invalid 是否 signal 是 implementation-defined。这样的细节必须在本架构中固定下来，否则验证会非常痛苦。</p>
+<h2 id="11-文档说明">11. 文档说明</h2>
+<p>如果要把这套逻辑真正落到项目里，我建议至少要包含下面几张表。</p>
+<h3 id="1-format-table">1. Format table</h3>
+<p>说明每种格式的：</p>
+<ul>
+<li>位宽；</li>
+<li><code>S/E/M</code>；</li>
+<li>bias；</li>
+<li>是否支持 inf；</li>
+<li>是否支持 NaN；</li>
+<li>是否支持 subnormal；</li>
+<li>默认 qNaN 编码；</li>
+<li>是否 IEEE 754 标准格式。</li>
+</ul>
+<h3 id="2-special-case-table">2. Special-case table</h3>
+<p>列出每种特殊组合：</p>
+<pre><code>0 * inf
+inf + (-inf)
+finite / 0
+0 / 0
+inf / inf
+sNaN input
+qNaN input
+overflow
+underflow
+inexact</code></pre>
+<p>并明确：</p>
+<ul>
+<li>输出编码；</li>
+<li>flag；</li>
+<li>是否受 CSR 覆盖；</li>
+<li>strict mode / fast mode 是否不同。</li>
+</ul>
+<h3 id="3-rounding-table">3. Rounding table</h3>
+<p>说明每条路径支持哪些舍入：</p>
+<ul>
+<li>scalar FP；</li>
+<li>vector FP；</li>
+<li>tensor / MMA；</li>
+<li>dequantize；</li>
+<li>requantize；</li>
+<li>convert。</li>
+</ul>
+<p>不要默认所有路径都支持 IEEE 754 的全部 rounding attributes。</p>
+<h3 id="4-daz-ftz-policy-table">4. DAZ / FTZ policy table</h3>
+<p>说明每种格式和每条路径：</p>
+<ul>
+<li>input subnormal 是否 DAZ；</li>
+<li>output subnormal 是否 FTZ；</li>
+<li>是否保留 sign；</li>
+<li>是否 raise underflow；</li>
+<li>是否 raise inexact；</li>
+<li>是否允许软件关闭。</li>
+</ul>
+<h3 id="5-bypass-priority-table">5. Bypass priority table</h3>
+<p>说明每个算子或函数近似单元的特殊值旁路优先级：</p>
+<ul>
+<li>qNaN 是否最高优先级；</li>
+<li>sNaN 是否在入口统一 quiet；</li>
+<li>inf 是传播、饱和还是转 NaN；</li>
+<li>zero 是否能直接输出常量；</li>
+<li>normal path 何时允许 clock gating。</li>
+</ul>
+<p>这几张表比一句“支持 IEEE 754”更有价值。</p>
+<h2 id="12-小结">12. 小结</h2>
+<p>IEEE 754-2019 给了我们一套非常清晰的浮点语义：</p>
+<ul>
+<li>Clause 3 定义编码与格式；</li>
+<li>Clause 4 定义舍入；</li>
+<li>Clause 6 定义 infinity、NaN 和 sign bit；</li>
+<li>Clause 7 定义异常和 status flags。</li>
+</ul>
+<p>但 NPU 浮点单元不是简单复刻 CPU FPU。在高吞吐通路里，硬件要在几件事之间做取舍：</p>
+<ul>
+<li>标准一致性；</li>
+<li>精度；</li>
+<li>AI 算子容错；</li>
+<li>PPA；</li>
+<li>时序；</li>
+<li>吞吐率；</li>
+<li>软件可控性；</li>
+<li>验证复杂度。</li>
+</ul>
+<p>我觉得工程上最重要的不是简单说“支持 IEEE 754”，而是把下面这些问题逐条定义清楚：</p>
+<pre><code>输入如何分类？
+哪些格式是标准 IEEE 格式，哪些是工程格式？
+NaN payload 是否保留？
+sNaN 是否 quiet？
+0 * inf 是否允许 CSR 覆盖？
+subnormal 是否 DAZ / FTZ？
+RNE / RTZ 支持在哪些路径？
+overflow / underflow / inexact 如何写 sticky flag？
+strict mode 和 fast mode 的输出是否不同？</code></pre>
+<p>这些边界定义清楚，浮点单元才真正从“符合标准的概念设计”，走到了“可以被 RTL、验证、编译器和软件共同使用的工程实现”。</p>
+<p>感兴趣的可以去看一下IEEE 754-2019协议原文。</p>
+          <nav class="article-nav">
+            <a href="/website/articles/soc-low-power-design-flow/">上一篇：SoC 芯片低功耗设计全流程</a>
+            <span></span>
+          </nav>
+        </article>
+
+        <aside class="toc">
+          <strong>目录</strong>
+          <a class="toc-level-2" href="#1-ieee-754-2019-相关章节">1. IEEE 754-2019 相关章节</a><a class="toc-level-2" href="#2-ieee-754-浮点数结构">2. IEEE 754 浮点数结构</a><a class="toc-level-2" href="#3-常见格式与特殊值检测">3. 常见格式与特殊值检测</a><a class="toc-level-3" href="#3-1-特殊值的检测">3.1 特殊值的检测</a><a class="toc-level-2" href="#4-zero">4. Zero</a><a class="toc-level-2" href="#5-inf">5. Inf</a><a class="toc-level-3" href="#5-1-工程问题示例-0-inf">5.1 工程问题示例：0  inf</a><a class="toc-level-2" href="#6-nan">6. NaN</a><a class="toc-level-2" href="#7-subnormal">7. Subnormal</a><a class="toc-level-3" href="#7-1-daz-denormals-are-zero">7.1 DAZ：Denormals Are Zero</a><a class="toc-level-3" href="#7-2-ftz-flush-to-zero">7.2 FTZ：Flush To Zero</a><a class="toc-level-2" href="#8-rounding">8. Rounding</a><a class="toc-level-2" href="#9-异常">9. 异常</a><a class="toc-level-3" href="#9-1-overflow">9.1 Overflow</a><a class="toc-level-3" href="#9-2-underflow">9.2 Underflow</a><a class="toc-level-3" href="#9-3-inexact">9.3 Inexact</a><a class="toc-level-3" href="#9-4-异常上报">9.4 异常上报</a><a class="toc-level-3" href="#9-5-异常的简化处理">9.5 异常的简化处理</a><a class="toc-level-2" href="#10-边界处理流程示例">10. 边界处理流程示例</a><a class="toc-level-3" href="#stage-0-unpack-classify">Stage 0：Unpack / Classify</a><a class="toc-level-3" href="#stage-1-policy-override">Stage 1：Policy Override</a><a class="toc-level-3" href="#stage-2-main-datapath-special-datapath">Stage 2：Main Datapath / Special Datapath</a><a class="toc-level-3" href="#stage-3-normalize">Stage 3：Normalize</a><a class="toc-level-3" href="#stage-4-round">Stage 4：Round</a><a class="toc-level-3" href="#stage-5-pack-commit">Stage 5：Pack / Commit</a><a class="toc-level-2" href="#11-文档说明">11. 文档说明</a><a class="toc-level-3" href="#1-format-table">1. Format table</a><a class="toc-level-3" href="#2-special-case-table">2. Special-case table</a><a class="toc-level-3" href="#3-rounding-table">3. Rounding table</a><a class="toc-level-3" href="#4-daz-ftz-policy-table">4. DAZ / FTZ policy table</a><a class="toc-level-3" href="#5-bypass-priority-table">5. Bypass priority table</a><a class="toc-level-2" href="#12-小结">12. 小结</a>
+        </aside>
+      </main>
+    
+    <footer class="footer">
+      <div class="shell footer-inner">
+        <span>© 2026 Ch'in</span>
+        <span>Built for silicon notes and technical writing.</span>
+      </div>
+    </footer>
+    <script src="/website/main.js?v=20260621-copy-fields"></script>
+  </body>
+</html>

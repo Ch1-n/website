@@ -23,7 +23,7 @@
         <a class="" href="/website/resume/">简历</a>
         <a class="active" href="/website/articles/">文章</a>
         <a href="/website/#contact">联系</a>
-        <a class="nav-cta" href="/website/articles/soc-low-power-design-flow/">最新文章</a>
+        <a class="nav-cta" href="/website/articles/ieee754-npu-boundary-handling/">最新文章</a>
       </div>
     </div>
   </nav>
@@ -52,7 +52,7 @@
           </div>
           <div class="tag-filter" id="tag-filter" aria-label="文章标签">
             <button class="tag-button active" type="button" data-tag="all" aria-pressed="true">全部标签</button>
-            <button class="tag-button" type="button" data-tag="FlashAttention">#FlashAttention</button><button class="tag-button" type="button" data-tag="Online Softmax">#Online Softmax</button><button class="tag-button" type="button" data-tag="NPU">#NPU</button><button class="tag-button" type="button" data-tag="Pipeline">#Pipeline</button><button class="tag-button" type="button" data-tag="Lookahead">#Lookahead</button><button class="tag-button" type="button" data-tag="SoC">#SoC</button><button class="tag-button" type="button" data-tag="低功耗">#低功耗</button><button class="tag-button" type="button" data-tag="UPF">#UPF</button>
+            <button class="tag-button" type="button" data-tag="FlashAttention">#FlashAttention</button><button class="tag-button" type="button" data-tag="Online Softmax">#Online Softmax</button><button class="tag-button" type="button" data-tag="NPU">#NPU</button><button class="tag-button" type="button" data-tag="Pipeline">#Pipeline</button><button class="tag-button" type="button" data-tag="Lookahead">#Lookahead</button><button class="tag-button" type="button" data-tag="SoC">#SoC</button><button class="tag-button" type="button" data-tag="低功耗">#低功耗</button><button class="tag-button" type="button" data-tag="UPF">#UPF</button><button class="tag-button" type="button" data-tag="IEEE 754">#IEEE 754</button><button class="tag-button" type="button" data-tag="浮点单元">#浮点单元</button>
           </div>
           <div class="article-grid article-list" id="article-list">
   <article class="article-card" data-category="NPU设计" data-tags="FlashAttention|Online Softmax|NPU">
@@ -88,6 +88,18 @@
       <h3><a href="/website/articles/soc-low-power-design-flow/">SoC 芯片低功耗设计全流程</a></h3>
       <p>从 Power 与 Energy 的目标区分出发，梳理动态功耗、静态功耗、系统架构、模块 RTL、Memory、物理实现和 Golden UPF Flow 的低功耗设计路径。</p>
       <a class="read-link" href="/website/articles/soc-low-power-design-flow/">阅读全文 →</a>
+    </div>
+  </article>
+
+  <article class="article-card" data-category="NPU设计" data-tags="IEEE 754|NPU|浮点单元">
+    <a class="article-image-link" href="/website/articles/ieee754-npu-boundary-handling/" aria-label="NPU 设计中自研浮点单元的 IEEE 754 工程取舍">
+      <img src="/website/assets/ieee754_npu_cover.png" alt="NPU 设计中自研浮点单元的 IEEE 754 工程取舍封面" loading="lazy" />
+    </a>
+    <div class="article-body">
+      <div class="article-meta"><span>NPU设计</span><span>IEEE 754</span><span>NPU</span><span>浮点单元</span><span>2026-06-28</span></div>
+      <h3><a href="/website/articles/ieee754-npu-boundary-handling/">NPU 设计中自研浮点单元的 IEEE 754 工程取舍</a></h3>
+      <p>结合 IEEE 754-2019 标准语义，梳理 NPU 浮点单元中 zero、subnormal、inf、NaN、rounding、overflow、underflow、inexact 和 sticky flags 的硬件处理方式。</p>
+      <a class="read-link" href="/website/articles/ieee754-npu-boundary-handling/">阅读全文 →</a>
     </div>
   </article>
 </div>
