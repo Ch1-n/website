@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI推理芯片/NPU设计中如何实现高效的FlashAttention | Ch'in</title>
+    <title>FlashAttention在NPU设计中的硬化思路（顺便勘正Tri Dao FA2/3论文错误） | Ch'in</title>
     <meta name="description" content="从标准 Attention 和 safe softmax 出发，解释 FlashAttention 为什么可以分块算出精确 attention，并指出 FA3 伪代码中的缩放项问题。" />
     <script>document.documentElement.classList.add("js");</script>
     <script>window.SITE_CONFIG={"basePath":"/website","contactApiBase":"","emailjs":{"serviceId":"QQ service_3vgpasm","templateId":"template_ukyfa7m","publicKey":"HY_NPIaIkw5fY4BKG","toEmail":"kvinkin@qq.com"}};</script>
@@ -32,7 +32,7 @@
       <main class="shell article-layout">
         <article class="post">
           <a class="back-link" href="/website/articles/">← 返回文章列表</a>
-          <h1>AI推理芯片/NPU设计中如何实现高效的FlashAttention</h1>
+          <h1>FlashAttention在NPU设计中的硬化思路（顺便勘正Tri Dao FA2/3论文错误）</h1>
           <p class="post-lede">从标准 Attention 和 safe softmax 出发，解释 FlashAttention 为什么可以分块算出精确 attention，并指出 FA3 伪代码中的缩放项问题。</p>
           <div class="article-meta"><span>NPU设计</span><span>FlashAttention</span><span>Online Softmax</span><span>NPU</span><span>2026-06-20</span></div>
           
